@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }} — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+    <div class="admin-header">
+        <div>
+            <h1>{{ event.title }}</h1>
+            <p>{{ venue.name }} · 📅 {{ event.date }}{% if event.time_slot %} · 🕐 {{ event.time_slot }}{% endif %}</p>
+            <span class="badge badge-{{ event.status }}">{{ event.status|title }}</span>
+        </div>
+    </div>
+
+    <!-- QR Code -->
+    <div class="qr-section">
+        <h3>QR Code for Customers</h3>
+        <p>Print this or display it at the venue. Customers scan to bid.</p>
+        <div class="qr-code">
+            <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR Code">
+        </div>
+        <p class="qr-url">{{ qr_url }}</p>
+        <a href="data:image/png;base64,{{ qr_b64 }}" download="bid-for-credit-qr-{{ event.id }}.png" class="btn btn-outline">Download QR Code</a>
+    </div>
+
+    <!-- Bids -->
+    <div class="bids-section">
+        <h3>Bids ({{ bids|length }})</h3>
+        {% if bids %}
+        <div class="bids-table">
+            <div class="bid-row bid-header">
+                <span>Rank</span>
+                <span>Name</span>
+                <span>Amount</span>
+                <span>Status</span>
+                <span>Time</span>
+            </div>
+            {% for bid in bids %}
+            <div class="bid-row {% if bid.id in winners|map(attribute='id')|list %}bid-winner{% endif %}">
+                <span class="bid-rank">#{{ loop.index }}</span>
+                <span>{{ bid.bidder_name }}<br><small>{{ bid.bidder_email }}</small></span>
+                <span class="bid-amount">${{ bid.amount }}</span>
+                <span><span class="badge badge-{{ bid.status }}">{{ bid.status|title }}</span></span>
+                <span class="bid-time">{{ bid.created_at }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No bids yet. Share the QR code to start receiving bids!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Actions -->
+    {% if event.status == 'open' and bids|length > 0 %}
+    <div class="admin-actions">
+        <form method="POST" action="{{ url_for('admin_close_event', event_id=event.id) }}"
+              onsubmit="return confirm('Close bidding and select winners? This cannot be undone.')">
+            <button type="submit" class="btn btn-danger btn-full">Close Bidding & Select Winners</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="admin-footer">
+        <a href="{{ url_for('admin_venue', venue_id=venue.venue_id) }}" class="btn btn-outline">← Back to {{ venue.name }}</a>
+    </div>
+</div>
+{% endblock %}

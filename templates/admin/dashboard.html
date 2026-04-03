@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Admin — Bid for Credit{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+    <div class="admin-header">
+        <h1>Admin Dashboard</h1>
+        <a href="{{ url_for('admin_new_venue') }}" class="btn btn-primary">+ New Venue</a>
+    </div>
+
+    {% if venues %}
+    <div class="venue-list">
+        {% for venue in venues %}
+        <a href="{{ url_for('admin_venue', venue_id=venue.id) }}" class="venue-card">
+            <div class="venue-badge {{ venue.type }}">{{ '🍽️' if venue.type == 'restaurant' else '⏳' }}</div>
+            <div class="venue-info">
+                <h3>{{ venue.name }}</h3>
+                <p>{{ venue.type|title }} · {{ venue.location or 'No location' }}</p>
+            </div>
+            <span class="arrow">→</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No venues yet. Create your first venue to get started.</p>
+    </div>
+    {% endif %}
+
+    <div class="admin-footer">
+        <a href="/" class="btn btn-outline">← Back to Home</a>
+    </div>
+</div>
+{% endblock %}

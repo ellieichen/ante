@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}New Venue — Bid for Credit{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+    <div class="admin-header">
+        <h1>Create New Venue</h1>
+    </div>
+
+    <form method="POST" class="admin-form">
+        <div class="form-group">
+            <label for="name">Venue Name</label>
+            <input type="text" id="name" name="name" required placeholder="e.g., Kitalum, 260 Sample Sale">
+        </div>
+        <div class="form-group">
+            <label for="type">Type</label>
+            <select id="type" name="type" required>
+                <option value="restaurant">🍽️ Restaurant</option>
+                <option value="line">⏳ Line / Waitlist</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="3" placeholder="Upscale Indian restaurant, popular brunch spot, etc."></textarea>
+        </div>
+        <div class="form-group">
+            <label for="location">Location</label>
+            <input type="text" id="location" name="location" placeholder="e.g., Lower East Side, NYC">
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Create Venue</button>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline btn-full">Cancel</a>
+    </form>
+</div>
+{% endblock %}
