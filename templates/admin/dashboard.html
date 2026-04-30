@@ -2,33 +2,31 @@
 {% block title %}Admin — Bid for Credit{% endblock %}
 
 {% block content %}
-<div class="admin-page">
+<div class="page page-wide">
     <div class="admin-header">
-        <h1>Admin Dashboard</h1>
-        <a href="{{ url_for('admin_new_venue') }}" class="btn btn-primary">+ New Venue</a>
+        <div>
+            <div class="venue-name">Restaurants</div>
+            <div class="session-meta">{{ venues|length }} total</div>
+        </div>
+        <a href="{{ url_for('admin_new_venue') }}" class="btn" style="width:auto; padding:0 14px;">+ New restaurant</a>
     </div>
 
     {% if venues %}
-    <div class="venue-list">
-        {% for venue in venues %}
-        <a href="{{ url_for('admin_venue', venue_id=venue.id) }}" class="venue-card">
-            <div class="venue-badge {{ venue.type }}">{{ '🍽️' if venue.type == 'restaurant' else '⏳' }}</div>
-            <div class="venue-info">
-                <h3>{{ venue.name }}</h3>
-                <p>{{ venue.type|title }} · {{ venue.location or 'No location' }}</p>
-            </div>
-            <span class="arrow">→</span>
-        </a>
-        {% endfor %}
+    <div class="admin-section" style="padding-top:14px;">
+        <div class="venue-list">
+            {% for v in venues %}
+            <a href="{{ url_for('admin_venue', venue_id=v.id) }}" class="venue-list-item">
+                <div>
+                    <div class="vli-name">{{ v.name }}</div>
+                    <div class="vli-loc">{{ v.location or 'No location' }}</div>
+                </div>
+                <span class="arrow">→</span>
+            </a>
+            {% endfor %}
+        </div>
     </div>
     {% else %}
-    <div class="empty-state">
-        <p>No venues yet. Create your first venue to get started.</p>
-    </div>
+    <div class="empty-state">No restaurants yet. Add one to get started.</div>
     {% endif %}
-
-    <div class="admin-footer">
-        <a href="/" class="btn btn-outline">← Back to Home</a>
-    </div>
 </div>
 {% endblock %}

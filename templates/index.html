@@ -2,45 +2,29 @@
 {% block title %}Bid for Credit{% endblock %}
 
 {% block content %}
-<div class="landing">
-    <div class="landing-hero">
-        <h1>Bid for Credit</h1>
+<div class="page">
+    <div class="landing">
+        <h1 class="hero-title">Bid <em>for</em> Credit</h1>
         <p class="tagline">Skip the wait. Commit to spend. Get in.</p>
-    </div>
 
-    <div class="landing-cards">
-        <div class="card">
-            <div class="card-icon">🍽️</div>
-            <h3>Restaurants</h3>
-            <p>Bid on hard-to-get tables. Your bid becomes your minimum spend — not a fee.</p>
-        </div>
-        <div class="card">
-            <div class="card-icon">⏳</div>
-            <h3>Lines & Waitlists</h3>
-            <p>Waiting 2 hours? Bid to skip ahead. Show them you're a serious customer.</p>
-        </div>
-    </div>
-
-    <div class="landing-how">
-        <h2>How It Works</h2>
-        <div class="steps">
+        <div class="landing-steps">
             <div class="step">
-                <div class="step-num">1</div>
-                <p>Scan the QR code at the venue or waitlist</p>
+                <span class="step-num">01</span>
+                <span class="step-text">Scan the QR at the host stand</span>
             </div>
             <div class="step">
-                <div class="step-num">2</div>
-                <p>Place your blind bid — how much you're willing to spend</p>
+                <span class="step-num">02</span>
+                <span class="step-text">Place your blind bid — the amount you'll spend</span>
             </div>
             <div class="step">
-                <div class="step-num">3</div>
-                <p>Highest bidders win. Your bid = your credit. No wasted money.</p>
+                <span class="step-num">03</span>
+                <span class="step-text">Highest bidders win. Your bid = your credit.</span>
             </div>
         </div>
-    </div>
 
-    <div class="landing-cta">
-        <a href="/admin" class="btn btn-outline">Venue Admin →</a>
+        <div class="landing-cta">
+            <a href="/admin" class="btn btn-secondary">Venue Admin</a>
+        </div>
     </div>
 </div>
 {% endblock %}

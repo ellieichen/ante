@@ -1,71 +1,66 @@
 {% extends "base.html" %}
 {% block title %}Bid Status — Bid for Credit{% endblock %}
 
+{% block live_pill %}
+<span class="live-pill"><span class="live-dot"></span>{{ bid.status }}</span>
+{% endblock %}
+
 {% block content %}
-<div class="status-page">
-    <div class="status-header">
-        <h1>{{ venue.name }}</h1>
-        <h2>{{ event.title }}</h2>
+<div class="page">
+    {% if bid.status == 'won' %}
+    <div class="winner-wrap">
+        <div class="winner-circle">
+            <div class="winner-check">✓</div>
+        </div>
+        <h1 class="winner-title">You're up — head to the host</h1>
+        <p class="winner-sub">Your bid has been accepted. Your credit is locked in toward tonight's bill.</p>
+
+        <div class="credit-card">
+            <div class="label">Credit applied to your bill</div>
+            <div class="credit-amount">${{ bid.amount }}</div>
+            <div class="credit-note">Spend it on anything — food, drinks, all of it</div>
+        </div>
+
+        <div class="winner-cta">
+            <a href="/" class="btn">Got it</a>
+        </div>
     </div>
 
-    <div class="status-card status-{{ bid.status }}">
-        {% if bid.status == 'pending' %}
+    {% elif bid.status == 'pending' %}
+    <div class="status-pending-card">
         <div class="status-icon">⏳</div>
-        <h3>Bid Received</h3>
-        <p>Your bid of <strong>${{ bid.amount }}</strong> has been placed.</p>
-        <p class="status-detail">Bidding is still open. You'll be notified if you're outbid or if you win.</p>
-
-        {% elif bid.status == 'won' %}
-        <div class="status-icon">🎉</div>
-        <h3>You Won!</h3>
-        <p>Your bid of <strong>${{ bid.amount }}</strong> won.</p>
-        <p class="status-detail">A hold of ${{ bid.amount }} has been placed on your card. This becomes your credit at {{ venue.name }}.</p>
-
-        {% elif bid.status == 'outbid' %}
-        <div class="status-icon">😔</div>
-        <h3>Outbid</h3>
-        <p>Unfortunately, your bid of <strong>${{ bid.amount }}</strong> didn't win this time.</p>
-        <p class="status-detail">No charge has been made to your card.</p>
-
-        {% elif bid.status == 'cancelled' %}
-        <div class="status-icon">❌</div>
-        <h3>Bid Cancelled</h3>
-        <p>Your bid has been cancelled. No charge was made.</p>
-        {% endif %}
+        <div class="status-title">Bid received</div>
+        <div class="status-detail">${{ bid.amount }} authorized · waiting on close</div>
     </div>
-
-    <!-- Anonymous bid landscape -->
-    {% if stats.total_bids > 0 and bid.status == 'pending' %}
-    <div class="bid-landscape">
-        <h4>Current Bid Landscape</h4>
-        <div class="bid-stats">
-            <div class="stat">
-                <span class="stat-value">{{ stats.total_bids }}</span>
-                <span class="stat-label">Total Bids</span>
-            </div>
-            <div class="stat">
-                <span class="stat-value">${{ stats.highest_bid }}</span>
-                <span class="stat-label">Highest</span>
-            </div>
-            <div class="stat">
-                <span class="stat-value">{{ event.spots_available }}</span>
-                <span class="stat-label">Spots</span>
+    <div class="bid-list-section" style="padding: 14px;">
+        <div class="label">Where you stand</div>
+        <div class="bid-list">
+            <div class="bid-row {% if stats.highest_bid == bid.amount %}bid-top{% endif %}">
+                <div class="bidder">
+                    <span class="bidder-name">You</span>
+                    <span class="bidder-time">${{ bid.amount }}</span>
+                    {% if stats.highest_bid == bid.amount %}<span class="top-badge">Top</span>{% endif %}
+                </div>
+                <div class="bidder-amount">{{ stats.total_bids }} total bid{{ 's' if stats.total_bids != 1 }}</div>
             </div>
         </div>
         {% if bid.amount < stats.highest_bid %}
-        <p class="bid-warning">⚠️ Your bid is below the current highest. Consider bidding higher to improve your chances.</p>
+        <div class="hint" style="text-align:center; padding:8px;">Highest is ${{ stats.highest_bid }}. Place again to bid higher.</div>
         {% endif %}
     </div>
+
+    {% elif bid.status == 'outbid' %}
+    <div class="status-outbid-card">
+        <div class="status-icon">·</div>
+        <div class="status-title">Outbid</div>
+        <div class="status-detail">Your ${{ bid.amount }} bid didn't win. Hold released within 90 minutes — no charge.</div>
+    </div>
+
+    {% elif bid.status == 'cancelled' %}
+    <div class="status-cancelled-card">
+        <div class="status-title">Bid cancelled</div>
+        <div class="status-detail">No charge was made.</div>
+    </div>
     {% endif %}
-
-    <div class="status-details">
-        <p><strong>Bid ID:</strong> {{ bid.id }}</p>
-        <p><strong>Name:</strong> {{ bid.bidder_name }}</p>
-        <p><strong>Date:</strong> {{ event.date }}{% if event.time_slot %} at {{ event.time_slot }}{% endif %}</p>
-    </div>
-
-    <div class="status-actions">
-        <a href="/e/{{ event.id }}" class="btn btn-outline">← Back to Event</a>
-    </div>
 </div>
 {% endblock %}

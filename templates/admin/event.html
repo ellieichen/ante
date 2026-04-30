@@ -1,68 +1,94 @@
 {% extends "base.html" %}
-{% block title %}{{ event.title }} — Admin{% endblock %}
+{% block title %}Session {{ session.id }} — {{ venue.name }}{% endblock %}
+
+{% block live_pill %}
+<span class="live-pill">
+    <span class="live-dot"></span>
+    {% if session.status == 'open' %}{{ bids|length }} bids{% else %}closed{% endif %}
+</span>
+{% endblock %}
 
 {% block content %}
-<div class="admin-page">
+<div class="page">
     <div class="admin-header">
         <div>
-            <h1>{{ event.title }}</h1>
-            <p>{{ venue.name }} · 📅 {{ event.date }}{% if event.time_slot %} · 🕐 {{ event.time_slot }}{% endif %}</p>
-            <span class="badge badge-{{ event.status }}">{{ event.status|title }}</span>
-        </div>
-    </div>
-
-    <!-- QR Code -->
-    <div class="qr-section">
-        <h3>QR Code for Customers</h3>
-        <p>Print this or display it at the venue. Customers scan to bid.</p>
-        <div class="qr-code">
-            <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR Code">
-        </div>
-        <p class="qr-url">{{ qr_url }}</p>
-        <a href="data:image/png;base64,{{ qr_b64 }}" download="bid-for-credit-qr-{{ event.id }}.png" class="btn btn-outline">Download QR Code</a>
-    </div>
-
-    <!-- Bids -->
-    <div class="bids-section">
-        <h3>Bids ({{ bids|length }})</h3>
-        {% if bids %}
-        <div class="bids-table">
-            <div class="bid-row bid-header">
-                <span>Rank</span>
-                <span>Name</span>
-                <span>Amount</span>
-                <span>Status</span>
-                <span>Time</span>
+            <div class="venue-name">{{ venue.name }}</div>
+            <div class="session-meta">
+                {{ session.spots_available }} table{{ 's' if session.spots_available != 1 }} in bid pool · Min ${{ session.min_bid }}
             </div>
-            {% for bid in bids %}
-            <div class="bid-row {% if bid.id in winners|map(attribute='id')|list %}bid-winner{% endif %}">
-                <span class="bid-rank">#{{ loop.index }}</span>
-                <span>{{ bid.bidder_name }}<br><small>{{ bid.bidder_email }}</small></span>
-                <span class="bid-amount">${{ bid.amount }}</span>
-                <span><span class="badge badge-{{ bid.status }}">{{ bid.status|title }}</span></span>
-                <span class="bid-time">{{ bid.created_at }}</span>
-            </div>
-            {% endfor %}
         </div>
-        {% else %}
-        <div class="empty-state">
-            <p>No bids yet. Share the QR code to start receiving bids!</p>
-        </div>
-        {% endif %}
     </div>
 
-    <!-- Actions -->
-    {% if event.status == 'open' and bids|length > 0 %}
-    <div class="admin-actions">
-        <form method="POST" action="{{ url_for('admin_close_event', event_id=event.id) }}"
-              onsubmit="return confirm('Close bidding and select winners? This cannot be undone.')">
-            <button type="submit" class="btn btn-danger btn-full">Close Bidding & Select Winners</button>
-        </form>
+    {% if session.status == 'open' %}
+    <div class="qr-card">
+        <div class="label">QR for the host stand</div>
+        <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR">
+        <div class="qr-url">{{ qr_url }}</div>
+        <a href="data:image/png;base64,{{ qr_b64 }}" download="bid-for-credit-qr-{{ session.id }}.png" class="btn btn-secondary">Download QR</a>
     </div>
     {% endif %}
 
-    <div class="admin-footer">
-        <a href="{{ url_for('admin_venue', venue_id=venue.venue_id) }}" class="btn btn-outline">← Back to {{ venue.name }}</a>
+    {% if session.status == 'closed' and release_at %}
+    <div class="admin-section">
+        <div class="card" style="font-size:10px; color: var(--text-secondary);">
+            Closed at {{ session.closed_at }}. Non-winner card holds release around <strong>{{ release_at }}</strong>.
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="admin-section">
+        <div class="label">Current bids · {{ bids|length }}</div>
+        <div class="bid-list">
+            {% set winner_ids = winners|map(attribute='id')|list %}
+            {% if bids %}
+                {% for b in bids %}
+                <div class="bid-row {% if loop.first %}bid-top{% endif %}">
+                    <div class="bidder">
+                        <span class="bidder-name">{{ b.bidder_name }}</span>
+                        <span class="bidder-time">{{ b.created_at[11:16] if b.created_at else '' }}</span>
+                        {% if loop.first %}<span class="top-badge">Top</span>{% endif %}
+                        {% if b.status == 'won' %}<span class="top-badge" style="background: var(--live);">Won</span>{% endif %}
+                        {% if b.status == 'outbid' %}<span class="top-badge" style="background: var(--text-muted);">Out</span>{% endif %}
+                    </div>
+                    <div class="bidder-amount">${{ b.amount }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="bid-list-empty">No bids yet — share the QR.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if session.status == 'open' and bids %}
+    {% set top = bids[0] %}
+    <div style="padding: 14px;">
+        <form method="POST" action="{{ url_for('admin_close_session', session_id=session.id) }}"
+              onsubmit="return confirm('Seat {{ top.bidder_name }} and award the top {{ session.spots_available }} bid(s)?')">
+            <button type="submit" class="btn">Seat {{ top.bidder_name }} — ${{ top.amount }} credit</button>
+        </form>
+        <button type="button" class="btn btn-secondary" disabled title="Available after close">Release all other holds</button>
+    </div>
+    {% endif %}
+
+    {% if session.status == 'closed' and winners %}
+    <div class="admin-section">
+        <div class="label">Winners</div>
+        <div class="card">
+            {% for w in winners %}
+            <div class="bid-row">
+                <div class="bidder">
+                    <span class="bidder-name">{{ w.bidder_name }}</span>
+                    <span class="bidder-time">{{ w.bidder_email }}</span>
+                </div>
+                <div class="bidder-amount">${{ w.amount }} credit</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div style="padding: 0 14px; margin-top:14px;">
+        <a href="{{ url_for('admin_venue', venue_id=venue.id) }}" class="btn btn-secondary">← Back to {{ venue.name }}</a>
     </div>
 </div>
 {% endblock %}

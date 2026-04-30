@@ -1,134 +1,118 @@
 {% extends "base.html" %}
-{% block title %}{{ event.title }} — Bid for Credit{% endblock %}
+{% block title %}{{ venue.name }} — Bid for Credit{% endblock %}
 
 {% block head %}
 <script src="https://js.stripe.com/v3/"></script>
 {% endblock %}
 
+{% block live_pill %}
+<span class="live-pill">
+    <span class="live-dot"></span>
+    {% if session.status == 'open' %}{{ stats.total_bids or 0 }} bids{% else %}closed{% endif %}
+</span>
+{% endblock %}
+
 {% block content %}
-<div class="event-page">
-    <div class="event-header">
-        <div class="venue-badge {{ venue.type }}">{{ '🍽️' if venue.type == 'restaurant' else '⏳' }} {{ venue.type|title }}</div>
-        <h1>{{ venue.name }}</h1>
-        <h2>{{ event.title }}</h2>
-        <div class="event-meta">
-            <span>📅 {{ event.date }}</span>
-            {% if event.time_slot %}<span>🕐 {{ event.time_slot }}</span>{% endif %}
-            <span>🎯 {{ event.spots_available }} spot{{ 's' if event.spots_available != 1 }}</span>
-        </div>
-        {% if venue.location %}
-        <p class="venue-location">📍 {{ venue.location }}</p>
-        {% endif %}
-        {% if venue.description %}
-        <p class="venue-desc">{{ venue.description }}</p>
-        {% endif %}
+<div class="page">
+    <div class="bid-page-header">
+        <span class="walkin-pill">Walk-in</span>
+        {% if venue.location %}<div class="overline">{{ venue.location }}</div>{% endif %}
+        <h1 class="display">{{ venue.name }}</h1>
+        <div class="meta">{{ session.spots_available }} table{{ 's' if session.spots_available != 1 }} in bid pool</div>
     </div>
 
-    {% if event.status == 'open' %}
-    <!-- Bid Stats (anonymous) -->
-    <div class="bid-stats">
-        {% if stats.total_bids > 0 %}
-        <div class="stat">
-            <span class="stat-value">{{ stats.total_bids }}</span>
-            <span class="stat-label">Bids</span>
-        </div>
-        <div class="stat">
-            <span class="stat-value">${{ stats.highest_bid }}</span>
-            <span class="stat-label">Highest</span>
-        </div>
-        <div class="stat">
-            <span class="stat-value">${{ stats.avg_bid|int }}</span>
-            <span class="stat-label">Average</span>
-        </div>
-        {% else %}
-        <p class="no-bids">No bids yet — be the first!</p>
-        {% endif %}
-    </div>
+    <hr class="divider">
 
-    <!-- Step 1: Bid Details -->
-    <div class="bid-form-container" id="step-details">
-        <h3>Place Your Bid</h3>
-        <p class="bid-explainer">Your bid is your <strong>minimum spend commitment</strong> — not a fee. If you win, this is what you'll spend at {{ venue.name }}.</p>
+    {% if session.status == 'open' %}
+    <div class="bid-section" id="step-details">
+        <div class="label">Your bid = your credit toward the bill</div>
+
+        <div class="bid-amount-input">
+            <span class="currency">$</span>
+            <input type="number" id="amount" name="amount" required
+                   min="{{ session.min_bid }}" step="10" value="{{ session.min_bid }}"
+                   placeholder="{{ session.min_bid }}">
+        </div>
+        <div class="hint">Highest bidder wins. If you don't win, your card is released.</div>
+
+        <div style="height:14px;"></div>
 
         <form id="details-form">
-            <div class="form-group">
-                <label for="name">Your Name</label>
-                <input type="text" id="name" name="name" required placeholder="Jane Doe">
+            <div class="field" style="padding:0;">
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" required placeholder="Jane">
             </div>
-            <div class="form-group">
+            <div class="field" style="padding:0;">
                 <label for="email">Email</label>
                 <input type="email" id="email" name="email" required placeholder="jane@example.com">
             </div>
-            <div class="form-group">
+            <div class="field" style="padding:0; margin-bottom:18px;">
                 <label for="phone">Phone (optional)</label>
                 <input type="tel" id="phone" name="phone" placeholder="(555) 123-4567">
             </div>
-            <div class="form-group">
-                <label for="amount">Your Bid ($)</label>
-                <div class="bid-input-wrapper">
-                    <span class="currency">$</span>
-                    <input type="number" id="amount" name="amount" required
-                           min="{{ event.min_bid }}" step="10" value="{{ event.min_bid }}"
-                           placeholder="{{ event.min_bid }}">
-                </div>
-                <span class="form-hint">Minimum: ${{ event.min_bid }}</span>
-            </div>
 
-            <div class="bid-summary">
-                <p>You're committing to spend <strong>$<span id="summary-amount">{{ event.min_bid }}</span></strong> at {{ venue.name }}.</p>
-                <p class="small">A hold will be placed on your card. You only get charged if you win.</p>
-            </div>
-
-            <button type="submit" class="btn btn-primary btn-full" id="continue-btn">
-                Continue to Payment →
-            </button>
+            <button type="submit" class="btn btn-place-bid" id="continue-btn">Place bid now →</button>
         </form>
     </div>
 
-    <!-- Step 2: Payment (Stripe Payment Element) -->
-    <div class="bid-form-container" id="step-payment" style="display: none;">
-        <h3>Complete Payment</h3>
-        <p class="bid-explainer">Authorize <strong>$<span id="payment-amount">0</span></strong> — you're only charged if you win the bid.</p>
-
-        <div id="payment-element"></div>
-        <div id="payment-message" style="display: none;" class="payment-message"></div>
-
-        <button id="submit-payment" class="btn btn-primary btn-full" style="margin-top: 20px;">
-            Confirm Bid & Authorize Payment
-        </button>
-        <button type="button" id="back-btn" class="btn btn-outline btn-full">
-            ← Back
-        </button>
+    <div id="step-payment" class="bid-section" style="display:none;">
+        <div class="label">Card to authorize</div>
+        <div id="card-element" style="margin-top:8px;"></div>
+        <div id="payment-message" style="display:none;" class="payment-error"></div>
+        <div style="height:14px;"></div>
+        <button id="submit-payment" class="btn btn-place-bid">Confirm bid for $<span id="payment-amount">0</span></button>
+        <button type="button" id="back-btn" class="btn btn-secondary">← Back</button>
     </div>
 
-    <!-- Loading overlay -->
-    <div id="loading-overlay" style="display: none;">
+    <div id="loading-overlay" style="display:none;">
         <div class="loading-spinner"></div>
-        <p>Processing your bid...</p>
+        <p>Authorizing your hold…</p>
     </div>
-
-    {% elif event.status == 'closed' %}
-    <div class="event-closed">
-        <h3>Bidding Closed</h3>
-        <p>This event's bidding period has ended. Winners have been notified.</p>
+    {% else %}
+    <div class="bid-section">
+        <div class="card" style="text-align:center;">
+            <div class="status-title">Bidding closed</div>
+            <div class="status-detail">This session has ended. Winners have been notified.</div>
+        </div>
     </div>
     {% endif %}
+
+    <hr class="divider">
+
+    <div class="bid-list-section">
+        <div class="label">Current bids</div>
+        <div class="bid-list">
+            {% if bids %}
+                {% for b in bids %}
+                <div class="bid-row {% if loop.first %}bid-top{% endif %}">
+                    <div class="bidder">
+                        <span class="bidder-name">{{ b.bidder_name.split()[0] if b.bidder_name else 'Anonymous' }}</span>
+                        <span class="bidder-time">{{ b.created_at[11:16] if b.created_at else '' }}</span>
+                        {% if loop.first %}<span class="top-badge">Top</span>{% endif %}
+                    </div>
+                    <div class="bidder-amount">${{ b.amount }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="bid-list-empty">No bids yet — be the first.</div>
+            {% endif %}
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+{% if session.status == 'open' %}
 <script>
 (function() {
     const STRIPE_KEY = '{{ stripe_key }}';
-    const EVENT_ID = '{{ event.id }}';
-    const MIN_BID = {{ event.min_bid }};
+    const SESSION_ID = '{{ session.id }}';
+    const MIN_BID = {{ session.min_bid }};
 
-    // Elements
     const detailsForm = document.getElementById('details-form');
     const stepDetails = document.getElementById('step-details');
     const stepPayment = document.getElementById('step-payment');
     const amountInput = document.getElementById('amount');
-    const summaryAmount = document.getElementById('summary-amount');
     const paymentAmount = document.getElementById('payment-amount');
     const continueBtn = document.getElementById('continue-btn');
     const submitBtn = document.getElementById('submit-payment');
@@ -136,33 +120,48 @@
     const loadingOverlay = document.getElementById('loading-overlay');
     const paymentMessage = document.getElementById('payment-message');
 
-    let stripe, elements, paymentElement;
+    let stripe = null;
+    let elements = null;
+    let cardElement = null;
     let clientSecret = '';
     let paymentIntentId = '';
+    let lockedAmount = null;
 
-    // Update summary as they type
-    amountInput.addEventListener('input', () => {
-        summaryAmount.textContent = amountInput.value || '0';
-    });
+    function ensureCardElement() {
+        if (cardElement) return;
+        stripe = Stripe(STRIPE_KEY);
+        elements = stripe.elements();
+        cardElement = elements.create('card', {
+            style: {
+                base: {
+                    color: '#1C1C1C',
+                    fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, sans-serif',
+                    fontSize: '13px',
+                    '::placeholder': { color: '#9A9088' },
+                },
+                invalid: { color: '#B5524A' },
+            },
+        });
+        cardElement.mount('#card-element');
+    }
 
-    // Step 1 → Step 2: Create PaymentIntent and show Stripe form
     detailsForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const name = document.getElementById('name').value.trim();
         const email = document.getElementById('email').value.trim();
-        const amount = parseInt(amountInput.value);
+        const amount = parseInt(amountInput.value, 10);
 
-        if (!name || !email || amount < MIN_BID) {
+        if (!name || !email || !Number.isFinite(amount) || amount < MIN_BID) {
             showMessage(`Please fill all fields. Minimum bid is $${MIN_BID}.`, true);
             return;
         }
 
         continueBtn.disabled = true;
-        continueBtn.textContent = 'Setting up payment...';
+        continueBtn.textContent = 'Setting up…';
 
         try {
-            const res = await fetch(`/e/${EVENT_ID}/create-payment-intent`, {
+            const res = await fetch(`/e/${SESSION_ID}/create-payment-intent`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ amount, name, email }),
@@ -172,36 +171,16 @@
             if (data.error) {
                 showMessage(data.error, true);
                 continueBtn.disabled = false;
-                continueBtn.textContent = 'Continue to Payment →';
+                continueBtn.textContent = 'Place bid now →';
                 return;
             }
 
             clientSecret = data.client_secret;
             paymentIntentId = data.payment_intent_id;
+            lockedAmount = amount;
 
-            // Initialize Stripe Elements
-            stripe = Stripe(STRIPE_KEY);
-            const appearance = {
-                theme: 'night',
-                variables: {
-                    colorPrimary: '#c9a461',
-                    colorBackground: '#0a0a0a',
-                    colorText: '#f0f0f0',
-                    colorDanger: '#f87171',
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                    borderRadius: '8px',
-                },
-            };
-
-            elements = stripe.elements({ clientSecret, appearance });
-            paymentElement = elements.create('payment', {
-                layout: 'tabs',
-                wallets: { applePay: 'auto', googlePay: 'auto' },
-            });
-            paymentElement.mount('#payment-element');
-
-            // Show step 2
-            paymentAmount.textContent = amount;
+            ensureCardElement();
+            paymentAmount.textContent = lockedAmount;
             stepDetails.style.display = 'none';
             stepPayment.style.display = 'block';
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -209,59 +188,57 @@
         } catch (err) {
             showMessage('Something went wrong. Please try again.', true);
             continueBtn.disabled = false;
-            continueBtn.textContent = 'Continue to Payment →';
+            continueBtn.textContent = 'Place bid now →';
         }
     });
 
-    // Back button
     backBtn.addEventListener('click', () => {
         stepPayment.style.display = 'none';
         stepDetails.style.display = 'block';
         continueBtn.disabled = false;
-        continueBtn.textContent = 'Continue to Payment →';
+        continueBtn.textContent = 'Place bid now →';
     });
 
-    // Submit payment
     submitBtn.addEventListener('click', async () => {
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Processing...';
+        submitBtn.textContent = 'Processing…';
         loadingOverlay.style.display = 'flex';
 
-        const { error } = await stripe.confirmPayment({
-            elements,
-            confirmParams: {
-                return_url: window.location.origin + '/bid/placeholder',
+        const name = document.getElementById('name').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+
+        const { error } = await stripe.confirmCardPayment(clientSecret, {
+            payment_method: {
+                card: cardElement,
+                billing_details: { name, email },
             },
-            redirect: 'if_required',
         });
 
         if (error) {
             showMessage(error.message, true);
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Confirm Bid & Authorize Payment';
+            submitBtn.textContent = `Confirm bid for $${lockedAmount}`;
             loadingOverlay.style.display = 'none';
             return;
         }
 
-        // Payment authorized! Now record the bid
-        const name = document.getElementById('name').value.trim();
-        const email = document.getElementById('email').value.trim();
-        const phone = document.getElementById('phone').value.trim();
-        const amount = parseInt(amountInput.value);
-
         try {
-            const res = await fetch(`/e/${EVENT_ID}/confirm-bid`, {
+            const res = await fetch(`/e/${SESSION_ID}/confirm-bid`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, phone, amount, payment_intent_id: paymentIntentId }),
+                body: JSON.stringify({ name, email, phone, payment_intent_id: paymentIntentId }),
             });
             const data = await res.json();
 
             if (data.redirect) {
                 window.location.href = data.redirect;
+            } else {
+                showMessage(data.error || 'Could not record bid.', true);
+                loadingOverlay.style.display = 'none';
             }
         } catch (err) {
-            showMessage('Bid recorded but there was an issue. Please contact support.', true);
+            showMessage('Bid recorded but there was an issue. Please contact the venue.', true);
             loadingOverlay.style.display = 'none';
         }
     });
@@ -269,8 +246,9 @@
     function showMessage(text, isError) {
         paymentMessage.textContent = text;
         paymentMessage.style.display = 'block';
-        paymentMessage.className = 'payment-message' + (isError ? ' payment-error' : '');
+        paymentMessage.className = isError ? 'payment-error' : '';
     }
 })();
 </script>
+{% endif %}
 {% endblock %}

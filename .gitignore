@@ -4,3 +4,6 @@ __pycache__/
 bidcredit.db
 *.db
 .DS_Store
+venv/
+screenshots/
+SPEC.md
