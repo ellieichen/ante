@@ -298,20 +298,14 @@ a { color: var(--accent); text-decoration: none; }
     margin: 0 auto;
 }
 .landing h1.hero-title {
-    font-size: 76px;
-    font-weight: 300;
-    letter-spacing: -0.04em;
-    color: var(--text);
-    margin-bottom: 18px;
-    line-height: 1;
-}
-.landing h1.hero-title em {
     font-family: 'DM Serif Display', Georgia, serif;
     font-style: italic;
     font-weight: 400;
-    color: var(--accent);
+    font-size: 140px;
     letter-spacing: -0.02em;
-    padding: 0 0.04em;
+    color: var(--accent);
+    margin-bottom: 18px;
+    line-height: 0.95;
 }
 .landing .tagline {
     font-size: 20px;
@@ -350,7 +344,7 @@ a { color: var(--accent); text-decoration: none; }
 
 @media (max-width: 480px) {
     .landing { padding: 40px 16px 32px; }
-    .landing h1.hero-title { font-size: 48px; }
+    .landing h1.hero-title { font-size: 84px; }
     .landing .tagline { font-size: 15px; margin-bottom: 32px; }
     .landing-steps { padding: 16px 18px; }
     .landing-steps .step-text { font-size: 14px; }

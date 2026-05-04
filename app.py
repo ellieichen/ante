@@ -12,7 +12,7 @@ import models
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'bid-for-credit-dev-key-change-me')
+app.secret_key = os.getenv('SECRET_KEY', 'ante-dev-key-change-me')
 
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
@@ -72,7 +72,7 @@ def create_payment_intent(session_id):
                 'bidder_name': name,
                 'bidder_email': email,
             },
-            description=f'Bid for Credit at {models.get_venue(session["venue_id"])["name"]}',
+            description=f'ANTE at {models.get_venue(session["venue_id"])["name"]}',
         )
         return jsonify({
             'client_secret': intent.client_secret,
