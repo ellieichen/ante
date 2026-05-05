@@ -28,25 +28,39 @@
 
     {% elif bid.status == 'pending' %}
     <div class="status-pending-card">
-        <div class="status-icon">⏳</div>
+        <div class="status-icon-pulse" aria-hidden="true"></div>
         <div class="status-title">Bid received</div>
         <div class="status-detail">${{ bid.amount }} authorized · waiting on close</div>
     </div>
     <div class="bid-list-section" style="padding: 14px;">
-        <div class="label">Where you stand</div>
+        <div class="label">All bids · {{ session.spots_available }} table{{ 's' if session.spots_available != 1 }} in pool</div>
         <div class="bid-list">
-            <div class="bid-row {% if stats.highest_bid == bid.amount %}bid-top{% endif %}">
+            {% for b in bids %}
+            <div class="bid-row {% if loop.index <= session.spots_available %}bid-winning{% endif %} {% if b.id == bid.id %}bid-mine{% endif %}">
                 <div class="bidder">
-                    <span class="bidder-name">You</span>
-                    <span class="bidder-time">${{ bid.amount }}</span>
-                    {% if stats.highest_bid == bid.amount %}<span class="top-badge">Top</span>{% endif %}
+                    <span class="bid-rank">#{{ loop.index }}</span>
+                    <span class="bidder-name">{% if b.id == bid.id %}You{% else %}{{ b.bidder_name.split()[0] if b.bidder_name else 'Anonymous' }}{% endif %}</span>
+                    <span class="bidder-time">{{ b.created_at[11:16] if b.created_at else '' }}</span>
+                    {% if loop.index <= session.spots_available %}<span class="winning-badge">Winning</span>{% endif %}
                 </div>
-                <div class="bidder-amount">{{ stats.total_bids }} total bid{{ 's' if stats.total_bids != 1 }}</div>
+                <div class="bidder-amount">${{ b.amount }}</div>
             </div>
+            {% endfor %}
         </div>
-        {% if bid.amount < stats.highest_bid %}
-        <div class="hint" style="text-align:center; padding:8px;">Highest is ${{ stats.highest_bid }}. Place again to bid higher.</div>
+        {% if tied_with_higher_rank %}
+        <div class="hint" style="text-align:center; padding:8px;">
+            Another bidder placed the same ${{ bid.amount }} bid before you, so they're #{{ rank - 1 }}. If neither of you bids higher, they'll win the tie.
+        </div>
+        {% elif not is_winning %}
+        <div class="hint" style="text-align:center; padding:8px;">
+            Top bid is ${{ stats.highest_bid }}. Bid higher to win a table.
+        </div>
+        {% else %}
+        <div class="hint" style="text-align:center; padding:8px;">
+            You're winning. Up your bid to stay safer if you'd like.
+        </div>
         {% endif %}
+        <a href="/e/{{ session.id }}?from_bid={{ bid.id }}" class="btn btn-place-bid" style="margin-top:8px;">Up the ANTE →</a>
     </div>
 
     {% elif bid.status == 'outbid' %}

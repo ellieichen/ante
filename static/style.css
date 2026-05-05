@@ -223,17 +223,20 @@ a { color: var(--accent); text-decoration: none; }
 /* ─── Bid input — large editable amount ───────────────────── */
 .bid-amount-input {
     display: flex;
-    align-items: baseline;
-    gap: 4px;
+    align-items: center;
+    gap: 10px;
     padding: 14px 0;
 }
 .bid-amount-input .currency {
     font-size: 28px;
     font-weight: 300;
     color: var(--text-secondary);
+    align-self: flex-end;
+    padding-bottom: 6px;
 }
 .bid-amount-input input {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     background: transparent;
     border: none;
     padding: 0;
@@ -246,6 +249,23 @@ a { color: var(--accent); text-decoration: none; }
 }
 .bid-amount-input input::-webkit-outer-spin-button,
 .bid-amount-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bid-step-btn {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-secondary);
+    font-size: 22px;
+    font-weight: 300;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+.bid-step-btn:hover { border-color: var(--text-secondary); color: var(--text); }
+.bid-step-btn:active { background: var(--surface); }
 
 /* ─── Bid rows ────────────────────────────────────────────── */
 .bid-list { padding: 0 6px; }
@@ -257,7 +277,17 @@ a { color: var(--accent); text-decoration: none; }
     border-radius: 5px;
 }
 .bid-row.bid-top { background: var(--surface); }
+.bid-row.bid-winning { background: var(--surface); }
+.bid-row.bid-mine { box-shadow: inset 0 0 0 1px var(--accent); }
 .bid-row .bidder { display: flex; align-items: center; gap: 6px; }
+.bid-row .bid-rank {
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    min-width: 18px;
+    letter-spacing: 0.02em;
+}
+.bid-row.bid-winning .bid-rank { color: var(--accent); }
 .bid-row .bidder-name {
     font-size: 11px;
     font-weight: 500;
@@ -274,6 +304,16 @@ a { color: var(--accent); text-decoration: none; }
 }
 .top-badge {
     background: var(--accent);
+    color: var(--accent-text);
+    font-size: 7px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+.winning-badge {
+    background: var(--live);
     color: var(--accent-text);
     font-size: 7px;
     font-weight: 500;
@@ -442,6 +482,20 @@ a { color: var(--accent); text-decoration: none; }
 .status-icon { font-size: 28px; margin-bottom: 8px; }
 .status-title { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
 .status-detail { font-size: 10px; color: var(--text-secondary); }
+.status-icon-pulse {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--live);
+    margin: 0 auto 14px;
+    box-shadow: 0 0 0 0 rgba(45, 106, 79, 0.45);
+    animation: status-pulse 2s ease-out infinite;
+}
+@keyframes status-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(45, 106, 79, 0.45); }
+    70%  { box-shadow: 0 0 0 10px rgba(45, 106, 79, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(45, 106, 79, 0); }
+}
 
 /* ─── Admin pages ─────────────────────────────────────────── */
 .admin-header {

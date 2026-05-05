@@ -25,33 +25,41 @@
 
     {% if session.status == 'open' %}
     <div class="bid-section" id="step-details">
+        {% if from_bid %}
+        <div class="label">Up your bid — currently ${{ from_bid.amount }}</div>
+        {% else %}
         <div class="label">Your bid = your credit toward the bill</div>
+        {% endif %}
 
         <div class="bid-amount-input">
+            <button type="button" class="bid-step-btn" id="bid-decrease" aria-label="Decrease bid by $10">−</button>
             <span class="currency">$</span>
-            <input type="number" id="amount" name="amount" required
-                   min="{{ session.min_bid }}" step="10" value="{{ session.min_bid }}"
-                   placeholder="{{ session.min_bid }}">
+            <input type="text" id="amount" name="amount" required
+                   value="{% if from_bid %}{{ ((from_bid.amount // 10) + 1) * 10 }}{% else %}{{ ((session.min_bid + 9) // 10) * 10 }}{% endif %}"
+                   placeholder="{{ ((session.min_bid + 9) // 10) * 10 }}"
+                   inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+            <button type="button" class="bid-step-btn" id="bid-increase" aria-label="Increase bid by $10">+</button>
         </div>
-        <div class="hint">Highest bidder wins. If you don't win, your card is released.</div>
+        <div class="hint">{% if from_bid %}Must be more than your previous ${{ from_bid.amount }}. {% endif %}Tap − / + to step by $10, or type any amount.</div>
 
         <div style="height:14px;"></div>
 
         <form id="details-form">
             <div class="field" style="padding:0;">
                 <label for="name">Name</label>
-                <input type="text" id="name" name="name" required placeholder="Jane">
+                <input type="text" id="name" name="name" required placeholder="Jane" value="{{ from_bid.bidder_name if from_bid else '' }}">
             </div>
             <div class="field" style="padding:0;">
                 <label for="email">Email</label>
-                <input type="email" id="email" name="email" required placeholder="jane@example.com">
+                <input type="email" id="email" name="email" required placeholder="jane@example.com" value="{{ from_bid.bidder_email if from_bid else '' }}">
             </div>
             <div class="field" style="padding:0; margin-bottom:18px;">
-                <label for="phone">Phone (optional)</label>
-                <input type="tel" id="phone" name="phone" placeholder="(555) 123-4567">
+                <label for="phone">Phone</label>
+                <input type="tel" id="phone" name="phone" required placeholder="(555) 123-4567" value="{{ from_bid.bidder_phone if from_bid else '' }}">
+                <div class="hint" style="margin-top:6px;">By providing your phone, you agree to receive a one-time SMS notification if you win this bid. Reply STOP to opt out.</div>
             </div>
 
-            <button type="submit" class="btn btn-place-bid" id="continue-btn">Place bid now →</button>
+            <button type="submit" class="btn btn-place-bid" id="continue-btn">{% if from_bid %}Up the ANTE →{% else %}Place bid now →{% endif %}</button>
         </form>
     </div>
 
@@ -80,15 +88,16 @@
     <hr class="divider">
 
     <div class="bid-list-section">
-        <div class="label">Current bids</div>
+        <div class="label">Current bids · {{ session.spots_available }} table{{ 's' if session.spots_available != 1 }} in pool</div>
         <div class="bid-list">
             {% if bids %}
                 {% for b in bids %}
-                <div class="bid-row {% if loop.first %}bid-top{% endif %}">
+                <div class="bid-row {% if loop.index <= session.spots_available %}bid-winning{% endif %}">
                     <div class="bidder">
+                        <span class="bid-rank">#{{ loop.index }}</span>
                         <span class="bidder-name">{{ b.bidder_name.split()[0] if b.bidder_name else 'Anonymous' }}</span>
                         <span class="bidder-time">{{ b.created_at[11:16] if b.created_at else '' }}</span>
-                        {% if loop.first %}<span class="top-badge">Top</span>{% endif %}
+                        {% if loop.index <= session.spots_available %}<span class="winning-badge">Winning</span>{% endif %}
                     </div>
                     <div class="bidder-amount">${{ b.amount }}</div>
                 </div>
@@ -97,6 +106,7 @@
                 <div class="bid-list-empty">No bids yet — be the first.</div>
             {% endif %}
         </div>
+        <div class="hint" style="text-align:center; padding:8px;">Ties at a table go to whoever bid first. Bid higher to take the lead.</div>
     </div>
 </div>
 {% endblock %}
@@ -108,6 +118,8 @@
     const STRIPE_KEY = '{{ stripe_key }}';
     const SESSION_ID = '{{ session.id }}';
     const MIN_BID = {{ session.min_bid }};
+    const FROM_BID_ID = '{{ from_bid.id if from_bid else "" }}';
+    const SUBMIT_LABEL = {% if from_bid %}'Up the ANTE →'{% else %}'Place bid now →'{% endif %};
 
     const detailsForm = document.getElementById('details-form');
     const stepDetails = document.getElementById('step-details');
@@ -145,14 +157,26 @@
         cardElement.mount('#card-element');
     }
 
+    document.getElementById('bid-increase').addEventListener('click', () => {
+        const cur = parseInt(amountInput.value, 10);
+        const base = Number.isFinite(cur) ? cur : MIN_BID;
+        amountInput.value = Math.floor(base / 10) * 10 + 10;
+    });
+    document.getElementById('bid-decrease').addEventListener('click', () => {
+        const cur = parseInt(amountInput.value, 10);
+        const base = Number.isFinite(cur) ? cur : MIN_BID;
+        amountInput.value = Math.max(MIN_BID, Math.ceil(base / 10) * 10 - 10);
+    });
+
     detailsForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const name = document.getElementById('name').value.trim();
         const email = document.getElementById('email').value.trim();
+        const phone = document.getElementById('phone').value.trim();
         const amount = parseInt(amountInput.value, 10);
 
-        if (!name || !email || !Number.isFinite(amount) || amount < MIN_BID) {
+        if (!name || !email || !phone || !Number.isFinite(amount) || amount < MIN_BID) {
             showMessage(`Please fill all fields. Minimum bid is $${MIN_BID}.`, true);
             return;
         }
@@ -164,14 +188,14 @@
             const res = await fetch(`/e/${SESSION_ID}/create-payment-intent`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount, name, email }),
+                body: JSON.stringify({ amount, name, email, phone, from_bid: FROM_BID_ID }),
             });
             const data = await res.json();
 
             if (data.error) {
                 showMessage(data.error, true);
                 continueBtn.disabled = false;
-                continueBtn.textContent = 'Place bid now →';
+                continueBtn.textContent = SUBMIT_LABEL;
                 return;
             }
 
@@ -188,7 +212,7 @@
         } catch (err) {
             showMessage('Something went wrong. Please try again.', true);
             continueBtn.disabled = false;
-            continueBtn.textContent = 'Place bid now →';
+            continueBtn.textContent = SUBMIT_LABEL;
         }
     });
 
@@ -196,7 +220,7 @@
         stepPayment.style.display = 'none';
         stepDetails.style.display = 'block';
         continueBtn.disabled = false;
-        continueBtn.textContent = 'Place bid now →';
+        continueBtn.textContent = SUBMIT_LABEL;
     });
 
     submitBtn.addEventListener('click', async () => {
@@ -227,7 +251,7 @@
             const res = await fetch(`/e/${SESSION_ID}/confirm-bid`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, phone, payment_intent_id: paymentIntentId }),
+                body: JSON.stringify({ name, email, phone, payment_intent_id: paymentIntentId, from_bid: FROM_BID_ID }),
             });
             const data = await res.json();
 

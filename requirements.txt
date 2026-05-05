@@ -3,3 +3,4 @@ gunicorn==21.2.0
 stripe==7.0.0
 qrcode[pil]==7.4.2
 python-dotenv==1.0.0
+twilio==9.3.7
