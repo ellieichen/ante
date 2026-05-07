@@ -17,51 +17,44 @@ def get_db():
     return conn
 
 
+MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), 'migrations')
+
+
 def init_db():
+    """Apply any pending migrations from migrations/. Safe to call on every
+    startup — only files whose number > PRAGMA user_version are run, in order,
+    each inside its own transaction. See migrations/README.md for the full
+    contract; the short version is: never edit existing migration files,
+    always add a new numbered .sql file for any schema change."""
     conn = get_db()
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS venues (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT,
-            location TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
+    current = conn.execute('PRAGMA user_version').fetchone()[0]
 
-        CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            venue_id TEXT NOT NULL REFERENCES venues(id),
-            spots_available INTEGER NOT NULL DEFAULT 1,
-            min_bid INTEGER NOT NULL DEFAULT 50,
-            status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'closed')),
-            closed_at TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
-        );
+    pending = []
+    if os.path.isdir(MIGRATIONS_DIR):
+        for filename in sorted(os.listdir(MIGRATIONS_DIR)):
+            if not filename.endswith('.sql'):
+                continue
+            try:
+                version = int(filename.split('_', 1)[0])
+            except ValueError:
+                continue
+            if version > current:
+                pending.append((version, filename))
 
-        CREATE TABLE IF NOT EXISTS bids (
-            id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL REFERENCES sessions(id),
-            bidder_name TEXT NOT NULL,
-            bidder_email TEXT NOT NULL,
-            bidder_phone TEXT,
-            amount INTEGER NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN (
-                'pending',
-                'cancelled',
-                'expired',
-                'won_pending_confirm',
-                'won_confirmed',
-                'forfeited',
-                'outbid'
-            )),
-            auto_promote INTEGER NOT NULL DEFAULT 1,
-            stripe_payment_intent TEXT,
-            released_at TEXT,
-            confirm_window_started_at TEXT,
-            created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
-        );
-    ''')
-    conn.commit()
+    for version, filename in pending:
+        path = os.path.join(MIGRATIONS_DIR, filename)
+        with open(path, 'r') as f:
+            sql = f.read()
+        try:
+            conn.execute('BEGIN')
+            conn.executescript(sql)
+            conn.execute(f'PRAGMA user_version = {version}')
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            conn.close()
+            raise
+
     conn.close()
 
 
