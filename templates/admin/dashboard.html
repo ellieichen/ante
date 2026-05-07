@@ -15,13 +15,21 @@
     <div class="admin-section" style="padding-top:14px;">
         <div class="venue-list">
             {% for v in venues %}
-            <a href="{{ url_for('admin_venue', venue_id=v.id) }}" class="venue-list-item">
-                <div>
-                    <div class="vli-name">{{ v.name }}</div>
-                    <div class="vli-loc">{{ v.location or 'No location' }}</div>
+            <div class="venue-list-item">
+                <a href="{{ url_for('admin_venue', venue_id=v.id) }}" style="display:flex; flex:1; justify-content:space-between; align-items:center; color: var(--text); text-decoration:none;">
+                    <div>
+                        <div class="vli-name">{{ v.name }}</div>
+                        <div class="vli-loc">{{ v.location or 'No location' }}</div>
+                    </div>
+                </a>
+                <div style="display:flex; gap:6px; margin-left:8px;">
+                    <a href="{{ url_for('admin_edit_venue', venue_id=v.id) }}" class="btn btn-secondary" style="width:auto; padding:0 10px;">Edit</a>
+                    <form method="POST" action="{{ url_for('admin_delete_venue', venue_id=v.id) }}"
+                          onsubmit="return confirm('Delete {{ v.name }} and all its sessions and bids? This cannot be undone.')">
+                        <button type="submit" class="btn btn-secondary" style="width:auto; padding:0 10px;">Delete</button>
+                    </form>
                 </div>
-                <span class="arrow">→</span>
-            </a>
+            </div>
             {% endfor %}
         </div>
     </div>

@@ -330,6 +330,26 @@ a { color: var(--accent); text-decoration: none; }
     text-align: center;
 }
 
+/* ─── Top bid display ─────────────────────────────────────── */
+.top-bid-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin: 4px 8px 12px;
+}
+.top-bid-display .label { padding: 0; margin: 0; }
+.top-bid-display .top-bid-amount {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-style: italic;
+    font-size: 24px;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
 /* ─── Index / Landing ─────────────────────────────────────── */
 .landing {
     padding: 80px 24px 48px;

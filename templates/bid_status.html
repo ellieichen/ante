@@ -7,7 +7,7 @@
 
 {% block content %}
 <div class="page">
-    {% if bid.status == 'won' %}
+    {% if bid.status == 'won_confirmed' %}
     <div class="winner-wrap">
         <div class="winner-circle">
             <div class="winner-check">✓</div>
@@ -32,28 +32,36 @@
         <div class="status-title">Bid received</div>
         <div class="status-detail">${{ bid.amount }} authorized · waiting on close</div>
     </div>
+
     <div class="bid-list-section" style="padding: 14px;">
-        <div class="label">All bids · {{ session.spots_available }} table{{ 's' if session.spots_available != 1 }} in pool</div>
+        <div class="label">Live bids · {{ session.spots_available }} table{{ 's' if session.spots_available != 1 }}</div>
+        {% if stats.highest_bid %}
+        <div class="top-bid-display">
+            <span class="label">Top bid</span>
+            <span class="top-bid-amount">${{ stats.highest_bid }}</span>
+        </div>
+        {% endif %}
         <div class="bid-list">
             {% for b in bids %}
             <div class="bid-row {% if loop.index <= session.spots_available %}bid-winning{% endif %} {% if b.id == bid.id %}bid-mine{% endif %}">
                 <div class="bidder">
                     <span class="bid-rank">#{{ loop.index }}</span>
-                    <span class="bidder-name">{% if b.id == bid.id %}You{% else %}{{ b.bidder_name.split()[0] if b.bidder_name else 'Anonymous' }}{% endif %}</span>
-                    <span class="bidder-time">{{ b.created_at[11:16] if b.created_at else '' }}</span>
+                    <span class="bidder-name">{% if b.id == bid.id %}{{ b.bidder_name.split()[0] }}{% else %}Bidder {{ loop.index }}{% endif %}</span>
                     {% if loop.index <= session.spots_available %}<span class="winning-badge">Winning</span>{% endif %}
                 </div>
+                {% if b.id == bid.id %}
                 <div class="bidder-amount">${{ b.amount }}</div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
         {% if tied_with_higher_rank %}
         <div class="hint" style="text-align:center; padding:8px;">
-            Another bidder placed the same ${{ bid.amount }} bid before you, so they're #{{ rank - 1 }}. If neither of you bids higher, they'll win the tie.
+            Another bidder matched your ${{ bid.amount }} bid earlier, so they're #{{ rank - 1 }}. If neither of you bids higher, they'll win the tie.
         </div>
         {% elif not is_winning %}
         <div class="hint" style="text-align:center; padding:8px;">
-            Top bid is ${{ stats.highest_bid }}. Bid higher to win a table.
+            Bid higher than ${{ stats.highest_bid }} to take the lead.
         </div>
         {% else %}
         <div class="hint" style="text-align:center; padding:8px;">
@@ -61,13 +69,40 @@
         </div>
         {% endif %}
         <a href="/e/{{ session.id }}?from_bid={{ bid.id }}" class="btn btn-place-bid" style="margin-top:8px;">Up the ANTE →</a>
+        <form method="POST" action="{{ url_for('release_bid', bid_id=bid.id) }}"
+              onsubmit="return confirm('Release this bid? The ${{ bid.amount }} hold on your card will be cleared and you will not be in the running for a table.');"
+              style="margin-top:8px;">
+            <button type="submit" class="btn btn-secondary">Release my bid</button>
+        </form>
+    </div>
+
+    {% elif bid.status == 'won_pending_confirm' %}
+    <div class="status-pending-card">
+        <div class="status-icon-pulse" aria-hidden="true"></div>
+        <div class="status-title">You secured a table at {{ venue.name }}</div>
+        <div class="status-detail">
+            We've texted you at {{ bid.bidder_phone }}. Reply <strong>Y</strong> to confirm or <strong>N</strong> to release.
+            You have 10 minutes from when the text arrived, after which the spot goes to the next bidder.
+        </div>
+    </div>
+
+    {% elif bid.status == 'forfeited' %}
+    <div class="status-cancelled-card">
+        <div class="status-title">Confirmation window expired</div>
+        <div class="status-detail">You didn't confirm in time, so the spot was offered to the next bidder. No charge was made — hold released.</div>
+    </div>
+
+    {% elif bid.status == 'expired' %}
+    <div class="status-cancelled-card">
+        <div class="status-title">Bid expired</div>
+        <div class="status-detail">Bidding didn't close within an hour, so your hold was released automatically. No charge was made.</div>
     </div>
 
     {% elif bid.status == 'outbid' %}
     <div class="status-outbid-card">
         <div class="status-icon">·</div>
         <div class="status-title">Outbid</div>
-        <div class="status-detail">Your ${{ bid.amount }} bid didn't win. Hold released within 90 minutes — no charge.</div>
+        <div class="status-detail">Your ${{ bid.amount }} bid didn't win. Hold releases automatically — no charge.</div>
     </div>
 
     {% elif bid.status == 'cancelled' %}

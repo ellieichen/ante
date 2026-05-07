@@ -27,6 +27,12 @@
     <div class="bid-section" id="step-details">
         {% if from_bid %}
         <div class="label">Up your bid — currently ${{ from_bid.amount }}</div>
+        {% if stats.highest_bid %}
+        <div class="top-bid-display">
+            <span class="label">Top bid</span>
+            <span class="top-bid-amount">${{ stats.highest_bid }}</span>
+        </div>
+        {% endif %}
         {% else %}
         <div class="label">Your bid = your credit toward the bill</div>
         {% endif %}
@@ -59,6 +65,7 @@
                 <div class="hint" style="margin-top:6px;">By providing your phone, you agree to receive a one-time SMS notification if you win this bid. Reply STOP to opt out.</div>
             </div>
 
+            <div id="form-error" style="display:none; padding:10px 12px; margin-bottom:10px; background:rgba(181,82,74,0.08); border-left:2px solid #B5524A; color:#B5524A; font-size:11px; border-radius:5px;"></div>
             <button type="submit" class="btn btn-place-bid" id="continue-btn">{% if from_bid %}Up the ANTE →{% else %}Place bid now →{% endif %}</button>
         </form>
     </div>
@@ -85,29 +92,7 @@
     </div>
     {% endif %}
 
-    <hr class="divider">
 
-    <div class="bid-list-section">
-        <div class="label">Current bids · {{ session.spots_available }} table{{ 's' if session.spots_available != 1 }} in pool</div>
-        <div class="bid-list">
-            {% if bids %}
-                {% for b in bids %}
-                <div class="bid-row {% if loop.index <= session.spots_available %}bid-winning{% endif %}">
-                    <div class="bidder">
-                        <span class="bid-rank">#{{ loop.index }}</span>
-                        <span class="bidder-name">{{ b.bidder_name.split()[0] if b.bidder_name else 'Anonymous' }}</span>
-                        <span class="bidder-time">{{ b.created_at[11:16] if b.created_at else '' }}</span>
-                        {% if loop.index <= session.spots_available %}<span class="winning-badge">Winning</span>{% endif %}
-                    </div>
-                    <div class="bidder-amount">${{ b.amount }}</div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="bid-list-empty">No bids yet — be the first.</div>
-            {% endif %}
-        </div>
-        <div class="hint" style="text-align:center; padding:8px;">Ties at a table go to whoever bid first. Bid higher to take the lead.</div>
-    </div>
 </div>
 {% endblock %}
 
@@ -182,7 +167,30 @@
         }
 
         continueBtn.disabled = true;
-        continueBtn.textContent = 'Setting up…';
+        continueBtn.textContent = 'Working…';
+
+        // Up-the-ante: reuse the card on file via server-side PaymentIntent.
+        // No Stripe Elements step — the user only edited the amount.
+        if (FROM_BID_ID) {
+            try {
+                const res = await fetch(`/e/${SESSION_ID}/up-bid`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount, from_bid: FROM_BID_ID }),
+                });
+                const data = await res.json();
+                if (data.redirect) {
+                    window.location.href = data.redirect;
+                    return;
+                }
+                showMessage(data.error || 'Could not place bid.', true);
+            } catch (err) {
+                showMessage('Something went wrong. Please try again.', true);
+            }
+            continueBtn.disabled = false;
+            continueBtn.textContent = SUBMIT_LABEL;
+            return;
+        }
 
         try {
             const res = await fetch(`/e/${SESSION_ID}/create-payment-intent`, {
@@ -268,9 +276,16 @@
     });
 
     function showMessage(text, isError) {
+        // Step-payment (Stripe Elements) error region — only visible during step 2.
         paymentMessage.textContent = text;
         paymentMessage.style.display = 'block';
         paymentMessage.className = isError ? 'payment-error' : '';
+        // Step-details error region — visible during step 1 (form, including up-the-ante).
+        const formError = document.getElementById('form-error');
+        if (formError) {
+            formError.textContent = text;
+            formError.style.display = isError ? 'block' : 'none';
+        }
     }
 })();
 </script>

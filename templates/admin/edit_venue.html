@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ venue.name }} — ANTE{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="admin-header">
+        <div>
+            <div class="venue-name">Edit restaurant</div>
+            <div class="session-meta">{{ venue.name }}</div>
+        </div>
+    </div>
+
+    <form method="POST" style="padding-top:14px;">
+        <div class="field">
+            <label for="name">Venue name</label>
+            <input type="text" id="name" name="name" required value="{{ venue.name }}">
+        </div>
+        <div class="field">
+            <label for="location">Location</label>
+            <input type="text" id="location" name="location" value="{{ venue.location or '' }}">
+        </div>
+        <div class="field">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="2">{{ venue.description or '' }}</textarea>
+        </div>
+
+        <div style="padding: 14px;">
+            <button type="submit" class="btn">Save changes</button>
+            <a href="{{ url_for('admin_venue', venue_id=venue.id) }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

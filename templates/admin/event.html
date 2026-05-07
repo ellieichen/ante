@@ -47,8 +47,12 @@
                         <span class="bidder-name">{{ b.bidder_name }}</span>
                         <span class="bidder-time">{{ b.created_at[11:16] if b.created_at else '' }}</span>
                         {% if loop.first %}<span class="top-badge">Top</span>{% endif %}
-                        {% if b.status == 'won' %}<span class="top-badge" style="background: var(--live);">Won</span>{% endif %}
+                        {% if b.status == 'won_confirmed' %}<span class="top-badge" style="background: var(--live);">Won</span>{% endif %}
+                        {% if b.status == 'won_pending_confirm' %}<span class="top-badge" style="background: var(--accent);">Awaiting</span>{% endif %}
+                        {% if b.status == 'forfeited' %}<span class="top-badge" style="background: var(--text-muted);">Forfeit</span>{% endif %}
                         {% if b.status == 'outbid' %}<span class="top-badge" style="background: var(--text-muted);">Out</span>{% endif %}
+                        {% if b.status == 'cancelled' %}<span class="top-badge" style="background: var(--text-muted);">Cancelled</span>{% endif %}
+                        {% if b.status == 'expired' %}<span class="top-badge" style="background: var(--text-muted);">Expired</span>{% endif %}
                     </div>
                     <div class="bidder-amount">${{ b.amount }}</div>
                 </div>
@@ -60,25 +64,25 @@
     </div>
 
     {% if session.status == 'open' and bids %}
-    {% set top = bids[0] %}
     <div style="padding: 14px;">
         <form method="POST" action="{{ url_for('admin_close_session', session_id=session.id) }}"
-              onsubmit="return confirm('Seat {{ top.bidder_name }} and award the top {{ session.spots_available }} bid(s)?')">
-            <button type="submit" class="btn">Seat {{ top.bidder_name }} — ${{ top.amount }} credit</button>
+              onsubmit="return confirm('Close bidding? The top {{ session.spots_available }} bidder(s) will get a confirmation text and have 10 minutes to reply Y or N.')">
+            <button type="submit" class="btn">Close bidding & request confirmations</button>
         </form>
-        <button type="button" class="btn btn-secondary" disabled title="Available after close">Release all other holds</button>
     </div>
     {% endif %}
 
     {% if session.status == 'closed' and winners %}
     <div class="admin-section">
-        <div class="label">Winners</div>
+        <div class="label">Winners ({{ winners|length }} of {{ session.spots_available }})</div>
         <div class="card">
             {% for w in winners %}
             <div class="bid-row">
                 <div class="bidder">
                     <span class="bidder-name">{{ w.bidder_name }}</span>
                     <span class="bidder-time">{{ w.bidder_email }}</span>
+                    {% if w.status == 'won_confirmed' %}<span class="top-badge" style="background: var(--live);">Confirmed</span>
+                    {% elif w.status == 'won_pending_confirm' %}<span class="top-badge" style="background: var(--accent);">Awaiting Y/N</span>{% endif %}
                 </div>
                 <div class="bidder-amount">${{ w.amount }} credit</div>
             </div>
@@ -87,8 +91,15 @@
     </div>
     {% endif %}
 
-    <div style="padding: 0 14px; margin-top:14px;">
-        <a href="{{ url_for('admin_venue', venue_id=venue.id) }}" class="btn btn-secondary">← Back to {{ venue.name }}</a>
+    <div style="padding: 14px; margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('admin_venue', venue_id=venue.id) }}" class="btn btn-secondary" style="flex:1; min-width:120px;">← Back to {{ venue.name }}</a>
+        {% if session.status == 'closed' %}
+        <form method="POST" action="{{ url_for('admin_delete_session', session_id=session.id) }}"
+              onsubmit="return confirm('Delete this session and all its bids? This cannot be undone.')"
+              style="flex:1; min-width:120px;">
+            <button type="submit" class="btn btn-secondary" style="width:100%; color: #B5524A; border-color: #B5524A;">Delete session</button>
+        </form>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
