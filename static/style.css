@@ -216,18 +216,18 @@ a { color: var(--accent); text-decoration: none; }
 .party-size-row {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    gap: 6px;
-    margin-bottom: 10px;
+    gap: 8px;
+    margin-bottom: 14px;
 }
 .party-size-btn {
-    height: 52px;
+    height: 64px;
     border-radius: var(--radius-sm);
     border: 0.5px solid var(--border);
-    background: var(--bg);
+    background: var(--surface);
     color: var(--text);
     font-family: 'DM Serif Display', Georgia, serif;
     font-style: italic;
-    font-size: clamp(20px, calc(18px + 0.4vw), 26px);
+    font-size: clamp(30px, calc(24px + 0.8vw), 44px);
     font-weight: 400;
     line-height: 1;
     cursor: pointer;
@@ -244,9 +244,13 @@ a { color: var(--accent); text-decoration: none; }
     color: var(--accent-text);
     border-color: var(--accent);
 }
-.party-size-btn:disabled {
-    opacity: 0.3;
+.party-size-btn:disabled:not(.selected) {
+    opacity: 0.25;
     cursor: not-allowed;
+}
+.party-size-btn.selected:disabled {
+    opacity: 1;
+    cursor: default;
 }
 .party-size-helper {
     font-size: clamp(10px, calc(9px + 0.15vw), 12px);

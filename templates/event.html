@@ -191,18 +191,19 @@
             const btn = e.target.closest('.party-size-btn');
             if (!btn || btn.disabled) return;
             const ps = parseInt(btn.dataset.partySize, 10);
-            partyRow.querySelectorAll('.party-size-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             selectedPartySize = ps;
             recomputeEffectiveMin();
             const b = bucketFor(ps);
             const ts = partyToTable(ps);
             partyHelper.textContent =
-                `You'll be bidding on a table for ${ts}. ${b.count} available tonight. Minimum bid: $${b.min_bid}.`;
+                `Party of ${ps} — bidding on a table for ${ts}. Minimum bid $${b.min_bid}.`;
+            // Lock the selection: once a bidder commits to a party size, they can't
+            // toggle through sizes to watch the minimum change. To pick differently
+            // they reload and start over.
+            partyRow.querySelectorAll('.party-size-btn').forEach(b => b.disabled = true);
             // Reveal the bid amount + form section once a party size is locked in.
             if (postPartyStep) postPartyStep.style.display = 'block';
-            // Seed the bid input with the bucket's minimum (always reset on size change so
-            // the minimum visible to the bidder is always honest about their bucket).
             amountInput.value = b.min_bid;
         });
     }
