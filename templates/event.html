@@ -40,41 +40,45 @@
             <button type="button" class="party-size-btn" data-party-size="{{ ps }}">{{ ps }}</button>
             {% endfor %}
         </div>
-        <div class="party-size-helper" id="party-size-helper">Parties of 7 or more, please walk in.</div>
-        <div class="label" style="margin-top:14px;">Your bid = your credit toward the bill</div>
+        <div class="party-size-helper" id="party-size-helper">Pick your party size to begin.</div>
+        <div class="party-size-foot">Parties of 7 or more, please walk in.</div>
         {% endif %}
 
-        <div class="bid-amount-input">
-            <button type="button" class="bid-step-btn" id="bid-decrease" aria-label="Decrease bid by $10">−</button>
-            <span class="currency">$</span>
-            <input type="text" id="amount" name="amount" required
-                   value="{% if from_bid %}{{ ((from_bid.amount // 10) + 1) * 10 }}{% else %}0{% endif %}"
-                   placeholder="0"
-                   inputmode="numeric" pattern="[0-9]*" autocomplete="off">
-            <button type="button" class="bid-step-btn" id="bid-increase" aria-label="Increase bid by $10">+</button>
+        <div id="post-party-step" {% if not from_bid %}style="display:none;"{% endif %}>
+            {% if not from_bid %}<div class="label">Your bid = your credit toward the bill</div>{% endif %}
+
+            <div class="bid-amount-input">
+                <button type="button" class="bid-step-btn" id="bid-decrease" aria-label="Decrease bid by $10">−</button>
+                <span class="currency">$</span>
+                <input type="text" id="amount" name="amount" required
+                       value="{% if from_bid %}{{ ((from_bid.amount // 10) + 1) * 10 }}{% else %}0{% endif %}"
+                       placeholder="0"
+                       inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+                <button type="button" class="bid-step-btn" id="bid-increase" aria-label="Increase bid by $10">+</button>
+            </div>
+            <div class="hint">{% if from_bid %}Must be more than your previous ${{ from_bid.amount }}. {% endif %}Tap − / + to step by $10, or type any amount.</div>
+
+            <div style="height:14px;"></div>
+
+            <form id="details-form">
+                <div class="field" style="padding:0;">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" required placeholder="Jane" value="{{ from_bid.bidder_name if from_bid else '' }}">
+                </div>
+                <div class="field" style="padding:0;">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required placeholder="jane@example.com" value="{{ from_bid.bidder_email if from_bid else '' }}">
+                </div>
+                <div class="field" style="padding:0; margin-bottom:18px;">
+                    <label for="phone">Phone</label>
+                    <input type="tel" id="phone" name="phone" required placeholder="(555) 123-4567" value="{{ from_bid.bidder_phone if from_bid else '' }}">
+                    <div class="hint" style="margin-top:6px;">By providing your phone, you agree to receive a one-time SMS notification if you win this bid. Reply STOP to opt out.</div>
+                </div>
+
+                <div id="form-error" style="display:none; padding:10px 12px; margin-bottom:10px; background:rgba(181,82,74,0.08); border-left:2px solid #B5524A; color:#B5524A; font-size:11px; border-radius:5px;"></div>
+                <button type="submit" class="btn btn-place-bid" id="continue-btn">{% if from_bid %}Up the ANTE →{% else %}Place bid now →{% endif %}</button>
+            </form>
         </div>
-        <div class="hint">{% if from_bid %}Must be more than your previous ${{ from_bid.amount }}. {% endif %}Tap − / + to step by $10, or type any amount.</div>
-
-        <div style="height:14px;"></div>
-
-        <form id="details-form">
-            <div class="field" style="padding:0;">
-                <label for="name">Name</label>
-                <input type="text" id="name" name="name" required placeholder="Jane" value="{{ from_bid.bidder_name if from_bid else '' }}">
-            </div>
-            <div class="field" style="padding:0;">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required placeholder="jane@example.com" value="{{ from_bid.bidder_email if from_bid else '' }}">
-            </div>
-            <div class="field" style="padding:0; margin-bottom:18px;">
-                <label for="phone">Phone</label>
-                <input type="tel" id="phone" name="phone" required placeholder="(555) 123-4567" value="{{ from_bid.bidder_phone if from_bid else '' }}">
-                <div class="hint" style="margin-top:6px;">By providing your phone, you agree to receive a one-time SMS notification if you win this bid. Reply STOP to opt out.</div>
-            </div>
-
-            <div id="form-error" style="display:none; padding:10px 12px; margin-bottom:10px; background:rgba(181,82,74,0.08); border-left:2px solid #B5524A; color:#B5524A; font-size:11px; border-radius:5px;"></div>
-            <button type="submit" class="btn btn-place-bid" id="continue-btn">{% if from_bid %}Up the ANTE →{% else %}Place bid now →{% endif %}</button>
-        </form>
     </div>
 
     <div id="step-payment" class="bid-section" style="display:none;">
@@ -176,6 +180,7 @@
     // Party-size selector — only present on fresh bids; up-the-ante inherits.
     const partyRow = document.getElementById('party-size-row');
     const partyHelper = document.getElementById('party-size-helper');
+    const postPartyStep = document.getElementById('post-party-step');
     if (partyRow) {
         // Disable buttons for sizes with no matching bucket tonight.
         partyRow.querySelectorAll('.party-size-btn').forEach(btn => {
@@ -194,11 +199,11 @@
             const ts = partyToTable(ps);
             partyHelper.textContent =
                 `You'll be bidding on a table for ${ts}. ${b.count} available tonight. Minimum bid: $${b.min_bid}.`;
-            // Seed the bid input with the bucket's minimum if it's currently below it.
-            const cur = parseInt(amountInput.value, 10);
-            if (!Number.isFinite(cur) || cur < b.min_bid) {
-                amountInput.value = b.min_bid;
-            }
+            // Reveal the bid amount + form section once a party size is locked in.
+            if (postPartyStep) postPartyStep.style.display = 'block';
+            // Seed the bid input with the bucket's minimum (always reset on size change so
+            // the minimum visible to the bidder is always honest about their bucket).
+            amountInput.value = b.min_bid;
         });
     }
 
