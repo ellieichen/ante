@@ -34,18 +34,19 @@
         </div>
         {% endif %}
         {% else %}
-        <div class="label">How many in your party?</div>
-        <div class="party-size-row" id="party-size-row">
-            {% for ps in [1, 2, 3, 4, 5, 6] %}
-            <button type="button" class="party-size-btn" data-party-size="{{ ps }}">{{ ps }}</button>
-            {% endfor %}
+        <div id="party-step">
+            <div class="label">How many in your party?</div>
+            <div class="party-size-row" id="party-size-row">
+                {% for ps in [1, 2, 3, 4, 5, 6] %}
+                <button type="button" class="party-size-btn" data-party-size="{{ ps }}">{{ ps }}</button>
+                {% endfor %}
+            </div>
+            <div class="party-size-foot">Parties of 7 or more, please walk in.</div>
         </div>
-        <div class="party-size-helper" id="party-size-helper">Pick your party size to begin.</div>
-        <div class="party-size-foot">Parties of 7 or more, please walk in.</div>
         {% endif %}
 
         <div id="post-party-step" {% if not from_bid %}style="display:none;"{% endif %}>
-            {% if not from_bid %}<div class="label">Your bid = your credit toward the bill</div>{% endif %}
+            <div class="party-confirm-line" id="party-confirm-line">{% if from_bid %}Bidding for a party of {{ from_bid.party_size }}{% endif %}</div>
 
             <div class="bid-amount-input">
                 <button type="button" class="bid-step-btn" id="bid-decrease" aria-label="Decrease bid by $10">−</button>
@@ -178,9 +179,10 @@
     }
 
     // Party-size selector — only present on fresh bids; up-the-ante inherits.
+    const partyStep = document.getElementById('party-step');
     const partyRow = document.getElementById('party-size-row');
-    const partyHelper = document.getElementById('party-size-helper');
     const postPartyStep = document.getElementById('post-party-step');
+    const partyConfirmLine = document.getElementById('party-confirm-line');
     if (partyRow) {
         // Disable buttons for sizes with no matching bucket tonight.
         partyRow.querySelectorAll('.party-size-btn').forEach(btn => {
@@ -191,18 +193,15 @@
             const btn = e.target.closest('.party-size-btn');
             if (!btn || btn.disabled) return;
             const ps = parseInt(btn.dataset.partySize, 10);
-            btn.classList.add('selected');
             selectedPartySize = ps;
             recomputeEffectiveMin();
             const b = bucketFor(ps);
-            const ts = partyToTable(ps);
-            partyHelper.textContent =
-                `Party of ${ps} — bidding on a table for ${ts}. Minimum bid $${b.min_bid}.`;
-            // Lock the selection: once a bidder commits to a party size, they can't
-            // toggle through sizes to watch the minimum change. To pick differently
-            // they reload and start over.
-            partyRow.querySelectorAll('.party-size-btn').forEach(b => b.disabled = true);
-            // Reveal the bid amount + form section once a party size is locked in.
+            // Hide the whole party-size section — once a bidder commits, the
+            // question is gone. To pick differently, reload the page.
+            if (partyStep) partyStep.style.display = 'none';
+            // Reveal the bid amount + form section with a discreet "Bidding for a
+            // party of N" line at the top.
+            if (partyConfirmLine) partyConfirmLine.textContent = `Bidding for a party of ${ps}`;
             if (postPartyStep) postPartyStep.style.display = 'block';
             amountInput.value = b.min_bid;
         });

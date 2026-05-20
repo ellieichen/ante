@@ -217,17 +217,17 @@ a { color: var(--accent); text-decoration: none; }
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
 }
 .party-size-btn {
-    height: 64px;
+    height: 78px;
     border-radius: var(--radius-sm);
     border: 0.5px solid var(--border);
     background: var(--surface);
     color: var(--text);
     font-family: 'DM Serif Display', Georgia, serif;
     font-style: italic;
-    font-size: clamp(30px, calc(24px + 0.8vw), 44px);
+    font-size: clamp(40px, calc(34px + 1vw), 56px);
     font-weight: 400;
     line-height: 1;
     cursor: pointer;
@@ -239,25 +239,9 @@ a { color: var(--accent); text-decoration: none; }
     border-color: var(--accent);
     color: var(--accent);
 }
-.party-size-btn.selected {
-    background: var(--accent);
-    color: var(--accent-text);
-    border-color: var(--accent);
-}
-.party-size-btn:disabled:not(.selected) {
+.party-size-btn:disabled {
     opacity: 0.25;
     cursor: not-allowed;
-}
-.party-size-btn.selected:disabled {
-    opacity: 1;
-    cursor: default;
-}
-.party-size-helper {
-    font-size: clamp(10px, calc(9px + 0.15vw), 12px);
-    color: var(--text-secondary);
-    min-height: 1.4em;
-    margin-bottom: 4px;
-    text-align: center;
 }
 .party-size-foot {
     font-size: clamp(9px, calc(8px + 0.15vw), 11px);
@@ -265,6 +249,13 @@ a { color: var(--accent); text-decoration: none; }
     text-align: center;
     font-style: italic;
     margin-bottom: 12px;
+}
+.party-confirm-line {
+    font-size: clamp(11px, calc(10px + 0.2vw), 13px);
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-bottom: 12px;
+    letter-spacing: -0.005em;
 }
 
 /* ─── Big amount display ──────────────────────────────────── */
