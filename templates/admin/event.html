@@ -14,7 +14,7 @@
         <div>
             <div class="venue-name">{{ venue.name }}</div>
             <div class="session-meta">
-                {{ session.spots_available }} table{{ 's' if session.spots_available != 1 }} in bid pool · Min ${{ session.min_bid }}
+                {% for b in session_tables %}{{ b.count }}× {{ b.table_size }}-top (min ${{ b.min_bid }}){% if not loop.last %} · {% endif %}{% endfor %}
             </div>
         </div>
     </div>
@@ -36,16 +36,18 @@
     </div>
     {% endif %}
 
+    {% for group in bids_by_bucket %}
     <div class="admin-section">
-        <div class="label">Current bids · {{ bids|length }}</div>
+        <div class="label">
+            {{ group.bucket.table_size }}-tops · {{ group.winners|length }} of {{ group.bucket.count }} won · {{ group.bids|length }} bid{{ 's' if group.bids|length != 1 }}
+        </div>
         <div class="bid-list">
-            {% set winner_ids = winners|map(attribute='id')|list %}
-            {% if bids %}
-                {% for b in bids %}
+            {% if group.bids %}
+                {% for b in group.bids %}
                 <div class="bid-row {% if loop.first %}bid-top{% endif %}">
                     <div class="bidder">
                         <span class="bidder-name">{{ b.bidder_name }}</span>
-                        <span class="bidder-time">{{ b.created_at[11:16] if b.created_at else '' }}</span>
+                        <span class="bidder-time">party of {{ b.party_size }} · {{ b.created_at[11:16] if b.created_at else '' }}</span>
                         {% if loop.first %}<span class="top-badge">Top</span>{% endif %}
                         {% if b.status == 'won_confirmed' %}<span class="top-badge" style="background: var(--live);">Won</span>{% endif %}
                         {% if b.status == 'won_pending_confirm' %}<span class="top-badge" style="background: var(--accent);">Awaiting</span>{% endif %}
@@ -58,15 +60,16 @@
                 </div>
                 {% endfor %}
             {% else %}
-                <div class="bid-list-empty">No bids yet — share the QR.</div>
+                <div class="bid-list-empty">No bids in this bucket yet.</div>
             {% endif %}
         </div>
     </div>
+    {% endfor %}
 
     {% if session.status == 'open' and bids %}
     <div style="padding: 14px;">
         <form method="POST" action="{{ url_for('admin_close_session', session_id=session.id) }}"
-              onsubmit="return confirm('Close bidding? The top {{ session.spots_available }} bidder(s) will get a confirmation text and have 10 minutes to reply Y or N.')">
+              onsubmit="return confirm('Close bidding? Top bidders per table size will get a confirmation text and have 10 minutes to reply Y or N.')">
             <button type="submit" class="btn">Close bidding & request confirmations</button>
         </form>
     </div>
@@ -74,13 +77,13 @@
 
     {% if session.status == 'closed' and winners %}
     <div class="admin-section">
-        <div class="label">Winners ({{ winners|length }} of {{ session.spots_available }})</div>
+        <div class="label">Winners ({{ winners|length }})</div>
         <div class="card">
             {% for w in winners %}
             <div class="bid-row">
                 <div class="bidder">
                     <span class="bidder-name">{{ w.bidder_name }}</span>
-                    <span class="bidder-time">{{ w.bidder_email }}</span>
+                    <span class="bidder-time">party of {{ w.party_size }} · {{ w.bidder_email }}</span>
                     {% if w.status == 'won_confirmed' %}<span class="top-badge" style="background: var(--live);">Confirmed</span>
                     {% elif w.status == 'won_pending_confirm' %}<span class="top-badge" style="background: var(--accent);">Awaiting Y/N</span>{% endif %}
                 </div>

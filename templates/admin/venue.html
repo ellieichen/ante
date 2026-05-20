@@ -30,15 +30,29 @@
     <form method="POST" action="{{ url_for('admin_open_session', venue_id=venue.id) }}">
         <div class="admin-section">
             <div class="label">Open bidding</div>
+            <div class="hint" style="margin-bottom:12px;">Set the count + minimum bid for each table size you want in the bid pool tonight. Leave count at 0 to skip a size.</div>
         </div>
-        <div class="field-row">
-            <div class="field">
-                <label for="spots_available">Tables in pool</label>
-                <input type="number" id="spots_available" name="spots_available" value="1" min="1" max="20">
+        <div style="padding: 0 14px;">
+            <div class="bucket-row">
+                <div class="bucket-label">Two-tops</div>
+                <label for="count_2" class="bucket-sub">Count</label>
+                <input type="number" id="count_2" name="count_2" value="0" min="0" max="20" step="1">
+                <label for="min_bid_2" class="bucket-sub">Min bid ($)</label>
+                <input type="number" id="min_bid_2" name="min_bid_2" value="50" min="1" step="1">
             </div>
-            <div class="field">
-                <label for="min_bid">Min bid ($)</label>
-                <input type="number" id="min_bid" name="min_bid" value="50" min="1" step="10">
+            <div class="bucket-row">
+                <div class="bucket-label">Four-tops</div>
+                <label for="count_4" class="bucket-sub">Count</label>
+                <input type="number" id="count_4" name="count_4" value="0" min="0" max="20" step="1">
+                <label for="min_bid_4" class="bucket-sub">Min bid ($)</label>
+                <input type="number" id="min_bid_4" name="min_bid_4" value="100" min="1" step="1">
+            </div>
+            <div class="bucket-row">
+                <div class="bucket-label">Six-tops</div>
+                <label for="count_6" class="bucket-sub">Count</label>
+                <input type="number" id="count_6" name="count_6" value="0" min="0" max="20" step="1">
+                <label for="min_bid_6" class="bucket-sub">Min bid ($)</label>
+                <input type="number" id="min_bid_6" name="min_bid_6" value="150" min="1" step="1">
             </div>
         </div>
         <div style="padding: 14px;">

@@ -97,14 +97,15 @@ def _capture_stripe_hold(bid):
             app.logger.error(f"Stripe capture failed for {bid['id']}: {e}")
 
 
-def _promote_next_runner_up(session_id):
-    """When a winner forfeits, find the highest-ranked outbid bidder who opted
-    in to auto-promote and offer them the table at their original bid amount.
+def _promote_next_runner_up(session_id, table_size):
+    """When a winner forfeits, find the highest-ranked outbid bidder in the SAME
+    table-size bucket who opted in to auto-promote and offer them the table.
     Walks one bidder at a time; if they later forfeit, the next call promotes
-    the bidder after them. No-op if nobody qualifies (admin handles manually)."""
-    candidate = models.find_next_promotable_runner_up(session_id)
+    the bidder after them. Scoped to bucket so a 4-top forfeit doesn't promote
+    a 2-top bidder. No-op if nobody qualifies (admin handles manually)."""
+    candidate = models.find_next_promotable_runner_up(session_id, table_size)
     if not candidate:
-        app.logger.info(f"Session {session_id}: no opted-in runner-up to promote")
+        app.logger.info(f"Session {session_id} bucket {table_size}: no opted-in runner-up to promote")
         return
     if not models.promote_outbid_to_pending_confirm(candidate['id']):
         app.logger.info(f"Promotion lost the race for bid {candidate['id']}")
@@ -122,7 +123,9 @@ def _process_expirations():
     session, and admin pages — no background scheduler needed for the POC."""
     for bid in models.expire_stale_confirm_windows():
         _release_stripe_hold(bid)
-        _promote_next_runner_up(bid['session_id'])
+        table_size = models.map_party_to_table(bid['party_size'])
+        if table_size:
+            _promote_next_runner_up(bid['session_id'], table_size)
     for bid in models.expire_stale_pending_bids():
         _release_stripe_hold(bid)
 
@@ -168,13 +171,21 @@ def session_page(session_id):
                 return redirect(url_for('bid_status', bid_id=cookie_bid_id))
 
     venue = models.get_venue(session['venue_id'])
-    stats = models.get_bid_stats(session_id)
+    session_tables = models.get_session_tables(session_id)
+    stats = models.get_bid_stats(session_id)  # session-wide, drives the live-pill counter
 
     from_bid = models.get_bid(from_bid_id) if from_bid_id else None
     if from_bid and (from_bid['session_id'] != session_id or from_bid['status'] != 'pending'):
         from_bid = None
 
+    # Up-the-ante shows top bid scoped to the bidder's bucket, not the whole session.
+    bucket_stats = None
+    if from_bid:
+        bucket_stats = models.get_bid_stats(session_id, table_size=models.map_party_to_table(from_bid['party_size']))
+
     return render_template('event.html', session=session, venue=venue, stats=stats,
+                           bucket_stats=bucket_stats,
+                           session_tables=session_tables,
                            stripe_key=STRIPE_PUBLISHABLE_KEY,
                            from_bid=from_bid)
 
@@ -193,9 +204,23 @@ def create_payment_intent(session_id):
     name = data.get('name', '').strip()
     email = data.get('email', '').strip()
     phone = data.get('phone', '').strip()
+    party_size = data.get('party_size')
 
-    if amount < session['min_bid']:
-        return jsonify({'error': f'Minimum bid is ${session["min_bid"]}'}), 400
+    try:
+        party_size = int(party_size)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Please select your party size.'}), 400
+
+    table_size = models.map_party_to_table(party_size)
+    if not table_size:
+        return jsonify({'error': 'Parties of 7 or more, please walk in.'}), 400
+
+    bucket = models.get_session_table(session_id, table_size)
+    if not bucket or bucket['count'] <= 0:
+        return jsonify({'error': f'No tables for parties of {party_size} available tonight.'}), 400
+
+    if amount < bucket['min_bid']:
+        return jsonify({'error': f'Minimum bid for this table is ${bucket["min_bid"]}.'}), 400
     if amount > 10000:
         return jsonify({'error': 'Maximum bid is $10,000.'}), 400
     if not name or not email or not phone:
@@ -257,11 +282,19 @@ def confirm_bid(session_id):
     phone = data.get('phone', '').strip()
     payment_intent_id = data.get('payment_intent_id', '')
     auto_promote = bool(data.get('auto_promote', True))
+    party_size = data.get('party_size')
 
     if not phone or not _phone_valid(phone):
         return jsonify({'error': 'A valid phone number is required.'}), 400
 
     phone = _normalize_phone(phone)
+
+    try:
+        party_size = int(party_size)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Party size is required.'}), 400
+    if not models.map_party_to_table(party_size):
+        return jsonify({'error': 'Invalid party size.'}), 400
 
     # Source of truth for amount is the authorized PaymentIntent, not the client.
     if not payment_intent_id:
@@ -282,6 +315,7 @@ def confirm_bid(session_id):
         return jsonify({'error': 'Bidding just closed. Your hold has been released.'}), 400
 
     bid_id = models.place_bid(session_id, name, email, phone, amount,
+                              party_size=party_size,
                               stripe_payment_intent=payment_intent_id,
                               auto_promote=auto_promote)
 
@@ -363,8 +397,12 @@ def up_bid(session_id):
 
     if new_amount <= old_bid['amount']:
         return jsonify({'error': f'Bid more than your current ${old_bid["amount"]}.'}), 400
-    if new_amount < session['min_bid']:
-        return jsonify({'error': f'Minimum bid is ${session["min_bid"]}.'}), 400
+
+    table_size = models.map_party_to_table(old_bid['party_size'])
+    bucket = models.get_session_table(session_id, table_size) if table_size else None
+    bucket_min = bucket['min_bid'] if bucket else session['min_bid']
+    if new_amount < bucket_min:
+        return jsonify({'error': f'Minimum bid for this table is ${bucket_min}.'}), 400
     if new_amount > 10000:
         return jsonify({'error': 'Maximum bid is $10,000.'}), 400
 
@@ -409,6 +447,7 @@ def up_bid(session_id):
         session_id,
         old_bid['bidder_name'], old_bid['bidder_email'], old_bid['bidder_phone'],
         new_amount,
+        party_size=old_bid['party_size'],
         stripe_payment_intent=new_intent.id,
         auto_promote=True,
     )
@@ -439,12 +478,16 @@ def bid_status(bid_id):
         return redirect(url_for('index'))
     session = models.get_session(bid['session_id'])
     venue = models.get_venue(session['venue_id'])
-    stats = models.get_bid_stats(bid['session_id'])
+    table_size = models.map_party_to_table(bid['party_size'])
+    stats = models.get_bid_stats(bid['session_id'], table_size=table_size)
+    bucket = models.get_session_table(bid['session_id'], table_size) if table_size else None
+    bucket_count = bucket['count'] if bucket else session['spots_available']
 
-    # Rank this bid among active bids in the session (sorted: amount DESC, created_at ASC)
-    all_bids = models.get_bids_for_session(bid['session_id'], include_inactive=False)
+    # Rank this bid among active bids in the SAME bucket (sorted: amount DESC, created_at ASC).
+    # Bidder never sees other buckets — to them, "the bids" are only the bids they compete against.
+    all_bids = models.get_bids_for_session(bid['session_id'], include_inactive=False, table_size=table_size)
     rank = next((i + 1 for i, b in enumerate(all_bids) if b['id'] == bid_id), None)
-    is_winning = rank is not None and rank <= session['spots_available']
+    is_winning = rank is not None and rank <= bucket_count
     # Tied-with-higher-rank means another bidder above me has the same dollar amount but bid earlier
     tied_with_higher_rank = (
         rank is not None and rank > 1
@@ -454,7 +497,8 @@ def bid_status(bid_id):
     resp = make_response(render_template(
         'bid_status.html', bid=bid, session=session, venue=venue, stats=stats,
         bids=all_bids, rank=rank, is_winning=is_winning,
-        tied_with_higher_rank=tied_with_higher_rank
+        tied_with_higher_rank=tied_with_higher_rank,
+        bucket_count=bucket_count
     ))
     # Identify this browser as the bidder so the public event page can
     # highlight their row when they navigate back to /e/<session_id>.
@@ -552,9 +596,26 @@ def admin_open_session(venue_id):
     if models.get_open_session_for_venue(venue_id):
         flash('There is already an open session for this venue.', 'error')
         return redirect(url_for('admin_venue', venue_id=venue_id))
-    spots = max(1, int(request.form.get('spots_available', 1)))
-    min_bid = max(1, int(request.form.get('min_bid', 50)))
-    session_id = models.create_session(venue_id, spots, min_bid)
+
+    table_mix = []
+    for size in models.TABLE_SIZES:
+        try:
+            count = int(request.form.get(f'count_{size}', 0) or 0)
+            min_bid = int(request.form.get(f'min_bid_{size}', 0) or 0)
+        except ValueError:
+            flash('Counts and min bids must be whole numbers.', 'error')
+            return redirect(url_for('admin_venue', venue_id=venue_id))
+        if count > 0:
+            if min_bid < 1:
+                flash(f'Min bid for {size}-tops must be at least $1.', 'error')
+                return redirect(url_for('admin_venue', venue_id=venue_id))
+            table_mix.append({'table_size': size, 'count': count, 'min_bid': min_bid})
+
+    if not table_mix:
+        flash('Set at least one table size with a count above zero.', 'error')
+        return redirect(url_for('admin_venue', venue_id=venue_id))
+
+    session_id = models.create_session(venue_id, table_mix)
     flash('Bidding is now open!', 'success')
     return redirect(url_for('admin_session', session_id=session_id))
 
@@ -592,6 +653,16 @@ def admin_session(session_id):
     bids = models.get_bids_for_session(session_id)
     winners = models.get_active_winners(session_id)
 
+    session_tables = models.get_session_tables(session_id)
+    bids_by_bucket = []
+    for bucket in session_tables:
+        size = bucket['table_size']
+        bids_by_bucket.append({
+            'bucket': bucket,
+            'winners': models.get_active_winners(session_id, table_size=size),
+            'bids': models.get_bids_for_session(session_id, table_size=size),
+        })
+
     qr_url = f'{BASE_URL}/e/{session_id}'
     qr = qrcode.make(qr_url, box_size=8, border=2)
     buf = io.BytesIO()
@@ -606,6 +677,8 @@ def admin_session(session_id):
     return render_template('admin/event.html', session=session, venue=venue, bids=bids,
                            winners=winners, qr_b64=qr_b64, qr_url=qr_url,
                            release_at=release_at,
+                           session_tables=session_tables,
+                           bids_by_bucket=bids_by_bucket,
                            hold_release_minutes=models.HOLD_RELEASE_MINUTES)
 
 
@@ -624,19 +697,21 @@ def admin_close_session(session_id):
         return redirect(url_for('admin_session', session_id=session_id))
 
     venue = models.get_venue(session['venue_id'])
-    spots = session['spots_available']
-    pending = models.get_pending_bids_in_rank_order(session_id)
-    winners = pending[:spots]
-    losers = pending[spots:]
-
+    buckets = models.get_session_tables(session_id)
     promoted_count = 0
-    for bid in winners:
-        if models.transition_to_pending_confirm(bid['id']):
-            promoted_count += 1
-            _send_confirmation_prompt(bid, venue)
 
-    for bid in losers:
-        models.transition_bid_status(bid['id'], 'pending', 'outbid')
+    for bucket in buckets:
+        size = bucket['table_size']
+        count = bucket['count']
+        pending = models.get_pending_bids_in_rank_order(session_id, table_size=size)
+        winners = pending[:count]
+        losers = pending[count:]
+        for bid in winners:
+            if models.transition_to_pending_confirm(bid['id']):
+                promoted_count += 1
+                _send_confirmation_prompt(bid, venue)
+        for bid in losers:
+            models.transition_bid_status(bid['id'], 'pending', 'outbid')
 
     flash(f'Bidding closed. {promoted_count} winner(s) sent confirmation prompts.', 'success')
     return redirect(url_for('admin_session', session_id=session_id))
@@ -676,7 +751,9 @@ def sms_webhook():
     if body in ('N', 'NO', 'CANCEL'):
         if models.transition_bid_status(bid['id'], 'won_pending_confirm', 'forfeited'):
             _release_stripe_hold(bid)
-            _promote_next_runner_up(bid['session_id'])
+            table_size = models.map_party_to_table(bid['party_size'])
+            if table_size:
+                _promote_next_runner_up(bid['session_id'], table_size)
             return _twiml_reply("ANTE: Released. The hold on your card has been cleared.")
         return _twiml_reply("ANTE: That release could not be applied — the window may have ended.")
 
@@ -692,4 +769,6 @@ with app.app_context():
     models.init_db()
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    # Bind to 0.0.0.0 so other devices on the LAN (Ellie's phone) can reach the
+    # dev server for QR-scan testing. Prod runs under gunicorn and ignores this.
+    app.run(debug=True, host='0.0.0.0', port=5001)

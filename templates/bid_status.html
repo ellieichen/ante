@@ -34,7 +34,7 @@
     </div>
 
     <div class="bid-list-section" style="padding: 14px;">
-        <div class="label">Live bids · {{ session.spots_available }} table{{ 's' if session.spots_available != 1 }}</div>
+        <div class="label">Live bids · {{ bucket_count }} table{{ 's' if bucket_count != 1 }}</div>
         {% if stats.highest_bid %}
         <div class="top-bid-display">
             <span class="label">Top bid</span>
@@ -43,11 +43,11 @@
         {% endif %}
         <div class="bid-list">
             {% for b in bids %}
-            <div class="bid-row {% if loop.index <= session.spots_available %}bid-winning{% endif %} {% if b.id == bid.id %}bid-mine{% endif %}">
+            <div class="bid-row {% if loop.index <= bucket_count %}bid-winning{% endif %} {% if b.id == bid.id %}bid-mine{% endif %}">
                 <div class="bidder">
                     <span class="bid-rank">#{{ loop.index }}</span>
                     <span class="bidder-name">{% if b.id == bid.id %}{{ b.bidder_name.split()[0] }}{% else %}Bidder {{ loop.index }}{% endif %}</span>
-                    {% if loop.index <= session.spots_available %}<span class="winning-badge">Winning</span>{% endif %}
+                    {% if loop.index <= bucket_count %}<span class="winning-badge">Winning</span>{% endif %}
                 </div>
                 {% if b.id == bid.id %}
                 <div class="bidder-amount">${{ b.amount }}</div>

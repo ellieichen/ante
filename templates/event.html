@@ -27,22 +27,29 @@
     <div class="bid-section" id="step-details">
         {% if from_bid %}
         <div class="label">Up your bid — currently ${{ from_bid.amount }}</div>
-        {% if stats.highest_bid %}
+        {% if bucket_stats and bucket_stats.highest_bid %}
         <div class="top-bid-display">
             <span class="label">Top bid</span>
-            <span class="top-bid-amount">${{ stats.highest_bid }}</span>
+            <span class="top-bid-amount">${{ bucket_stats.highest_bid }}</span>
         </div>
         {% endif %}
         {% else %}
-        <div class="label">Your bid = your credit toward the bill</div>
+        <div class="label">How many in your party?</div>
+        <div class="party-size-row" id="party-size-row">
+            {% for ps in [1, 2, 3, 4, 5, 6] %}
+            <button type="button" class="party-size-btn" data-party-size="{{ ps }}">{{ ps }}</button>
+            {% endfor %}
+        </div>
+        <div class="party-size-helper" id="party-size-helper">Parties of 7 or more, please walk in.</div>
+        <div class="label" style="margin-top:14px;">Your bid = your credit toward the bill</div>
         {% endif %}
 
         <div class="bid-amount-input">
             <button type="button" class="bid-step-btn" id="bid-decrease" aria-label="Decrease bid by $10">−</button>
             <span class="currency">$</span>
             <input type="text" id="amount" name="amount" required
-                   value="{% if from_bid %}{{ ((from_bid.amount // 10) + 1) * 10 }}{% else %}{{ ((session.min_bid + 9) // 10) * 10 }}{% endif %}"
-                   placeholder="{{ ((session.min_bid + 9) // 10) * 10 }}"
+                   value="{% if from_bid %}{{ ((from_bid.amount // 10) + 1) * 10 }}{% else %}0{% endif %}"
+                   placeholder="0"
                    inputmode="numeric" pattern="[0-9]*" autocomplete="off">
             <button type="button" class="bid-step-btn" id="bid-increase" aria-label="Increase bid by $10">+</button>
         </div>
@@ -102,9 +109,33 @@
 (function() {
     const STRIPE_KEY = '{{ stripe_key }}';
     const SESSION_ID = '{{ session.id }}';
-    const MIN_BID = {{ session.min_bid }};
     const FROM_BID_ID = '{{ from_bid.id if from_bid else "" }}';
+    const FROM_BID_PARTY_SIZE = {{ from_bid.party_size if from_bid else 'null' }};
     const SUBMIT_LABEL = {% if from_bid %}'Up the ANTE →'{% else %}'Place bid now →'{% endif %};
+
+    // Server-supplied buckets: { table_size: { count, min_bid } }
+    const BUCKETS = {
+        {% for b in session_tables %}{{ b.table_size }}: { count: {{ b.count }}, min_bid: {{ b.min_bid }} }{% if not loop.last %}, {% endif %}{% endfor %}
+    };
+    function partyToTable(p) {
+        if (p == null) return null;
+        if (p <= 2) return 2;
+        if (p <= 4) return 4;
+        if (p <= 6) return 6;
+        return null;
+    }
+    function bucketFor(partySize) {
+        const ts = partyToTable(partySize);
+        return ts ? BUCKETS[ts] : null;
+    }
+
+    let selectedPartySize = FROM_BID_PARTY_SIZE || null;
+    let effectiveMin = null;
+    function recomputeEffectiveMin() {
+        const b = bucketFor(selectedPartySize);
+        effectiveMin = b ? b.min_bid : null;
+    }
+    recomputeEffectiveMin();
 
     const detailsForm = document.getElementById('details-form');
     const stepDetails = document.getElementById('step-details');
@@ -142,15 +173,48 @@
         cardElement.mount('#card-element');
     }
 
+    // Party-size selector — only present on fresh bids; up-the-ante inherits.
+    const partyRow = document.getElementById('party-size-row');
+    const partyHelper = document.getElementById('party-size-helper');
+    if (partyRow) {
+        // Disable buttons for sizes with no matching bucket tonight.
+        partyRow.querySelectorAll('.party-size-btn').forEach(btn => {
+            const ps = parseInt(btn.dataset.partySize, 10);
+            if (!bucketFor(ps)) btn.disabled = true;
+        });
+        partyRow.addEventListener('click', (e) => {
+            const btn = e.target.closest('.party-size-btn');
+            if (!btn || btn.disabled) return;
+            const ps = parseInt(btn.dataset.partySize, 10);
+            partyRow.querySelectorAll('.party-size-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedPartySize = ps;
+            recomputeEffectiveMin();
+            const b = bucketFor(ps);
+            const ts = partyToTable(ps);
+            partyHelper.textContent =
+                `You'll be bidding on a table for ${ts}. ${b.count} available tonight. Minimum bid: $${b.min_bid}.`;
+            // Seed the bid input with the bucket's minimum if it's currently below it.
+            const cur = parseInt(amountInput.value, 10);
+            if (!Number.isFinite(cur) || cur < b.min_bid) {
+                amountInput.value = b.min_bid;
+            }
+        });
+    }
+
+    function currentMin() {
+        return effectiveMin || 0;
+    }
+
     document.getElementById('bid-increase').addEventListener('click', () => {
         const cur = parseInt(amountInput.value, 10);
-        const base = Number.isFinite(cur) ? cur : MIN_BID;
+        const base = Number.isFinite(cur) ? cur : currentMin();
         amountInput.value = Math.floor(base / 10) * 10 + 10;
     });
     document.getElementById('bid-decrease').addEventListener('click', () => {
         const cur = parseInt(amountInput.value, 10);
-        const base = Number.isFinite(cur) ? cur : MIN_BID;
-        amountInput.value = Math.max(MIN_BID, Math.ceil(base / 10) * 10 - 10);
+        const base = Number.isFinite(cur) ? cur : currentMin();
+        amountInput.value = Math.max(currentMin(), Math.ceil(base / 10) * 10 - 10);
     });
 
     detailsForm.addEventListener('submit', async (e) => {
@@ -161,8 +225,13 @@
         const phone = document.getElementById('phone').value.trim();
         const amount = parseInt(amountInput.value, 10);
 
-        if (!name || !email || !phone || !Number.isFinite(amount) || amount < MIN_BID) {
-            showMessage(`Please fill all fields. Minimum bid is $${MIN_BID}.`, true);
+        if (!FROM_BID_ID && !selectedPartySize) {
+            showMessage('Please select your party size first.', true);
+            return;
+        }
+        const min = currentMin();
+        if (!name || !email || !phone || !Number.isFinite(amount) || amount < min) {
+            showMessage(`Please fill all fields. Minimum bid is $${min}.`, true);
             return;
         }
 
@@ -196,7 +265,7 @@
             const res = await fetch(`/e/${SESSION_ID}/create-payment-intent`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount, name, email, phone, from_bid: FROM_BID_ID }),
+                body: JSON.stringify({ amount, name, email, phone, party_size: selectedPartySize, from_bid: FROM_BID_ID }),
             });
             const data = await res.json();
 
@@ -259,7 +328,7 @@
             const res = await fetch(`/e/${SESSION_ID}/confirm-bid`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, phone, payment_intent_id: paymentIntentId, from_bid: FROM_BID_ID }),
+                body: JSON.stringify({ name, email, phone, party_size: selectedPartySize, payment_intent_id: paymentIntentId, from_bid: FROM_BID_ID }),
             });
             const data = await res.json();
 

@@ -9,6 +9,26 @@ HOLD_RELEASE_MINUTES = 90
 CONFIRM_WINDOW_MINUTES = 10
 PENDING_BID_EXPIRY_MINUTES = 60
 
+TABLE_SIZES = (2, 4, 6)
+
+
+def map_party_to_table(party_size):
+    """Bidder declares their party size; the system silently maps to the smallest
+    table_size that fits. Party of 1 or 2 -> 2-top; 3 or 4 -> 4-top; 5 or 6 -> 6-top.
+    Returns None for parties of 7+ (handled as walk-in, no bid available)."""
+    if party_size is None:
+        return None
+    try:
+        n = int(party_size)
+    except (TypeError, ValueError):
+        return None
+    if n < 1:
+        return None
+    for size in TABLE_SIZES:
+        if n <= size:
+            return size
+    return None
+
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -106,6 +126,7 @@ def delete_venue(venue_id):
     ).fetchall()]
     for sid in session_ids:
         conn.execute('DELETE FROM bids WHERE session_id = ?', (sid,))
+        conn.execute('DELETE FROM session_tables WHERE session_id = ?', (sid,))
     conn.execute('DELETE FROM sessions WHERE venue_id = ?', (venue_id,))
     conn.execute('DELETE FROM venues WHERE id = ?', (venue_id,))
     conn.commit()
@@ -124,6 +145,7 @@ def delete_session(session_id):
         conn.close()
         return False
     conn.execute('DELETE FROM bids WHERE session_id = ?', (session_id,))
+    conn.execute('DELETE FROM session_tables WHERE session_id = ?', (session_id,))
     conn.execute('DELETE FROM sessions WHERE id = ?', (session_id,))
     conn.commit()
     conn.close()
@@ -139,16 +161,55 @@ def get_all_venues():
 
 # ─── Sessions ──────────────────────────────────────────────────
 
-def create_session(venue_id, spots_available=1, min_bid=50):
+def create_session(venue_id, table_mix):
+    """Open a session with a per-bucket table mix. table_mix is a list of dicts:
+    [{'table_size': 2, 'count': 3, 'min_bid': 50}, {'table_size': 4, 'count': 2, 'min_bid': 100}, ...]
+    Only buckets with count > 0 are inserted. The legacy sessions.spots_available
+    and sessions.min_bid columns are set to the sum-of-counts and lowest min_bid
+    for back-compat with code/views that still read them."""
+    buckets = [b for b in table_mix if int(b.get('count', 0)) > 0]
+    if not buckets:
+        raise ValueError('At least one table size must have count > 0')
+
+    legacy_spots = sum(int(b['count']) for b in buckets)
+    legacy_min_bid = min(int(b['min_bid']) for b in buckets)
+
     conn = get_db()
     session_id = uuid.uuid4().hex[:8]
     conn.execute(
         'INSERT INTO sessions (id, venue_id, spots_available, min_bid) VALUES (?, ?, ?, ?)',
-        (session_id, venue_id, spots_available, min_bid)
+        (session_id, venue_id, legacy_spots, legacy_min_bid)
     )
+    for b in buckets:
+        conn.execute(
+            'INSERT INTO session_tables (session_id, table_size, count, min_bid) VALUES (?, ?, ?, ?)',
+            (session_id, int(b['table_size']), int(b['count']), int(b['min_bid']))
+        )
     conn.commit()
     conn.close()
     return session_id
+
+
+def get_session_tables(session_id):
+    """Return all bucket rows for a session, ordered by table_size ASC."""
+    conn = get_db()
+    rows = conn.execute(
+        'SELECT * FROM session_tables WHERE session_id = ? ORDER BY table_size ASC',
+        (session_id,)
+    ).fetchall()
+    conn.close()
+    return list(rows)
+
+
+def get_session_table(session_id, table_size):
+    """Return a single bucket row, or None if the session doesn't offer that size."""
+    conn = get_db()
+    row = conn.execute(
+        'SELECT * FROM session_tables WHERE session_id = ? AND table_size = ?',
+        (session_id, int(table_size))
+    ).fetchone()
+    conn.close()
+    return row
 
 
 def get_session(session_id):
@@ -192,23 +253,41 @@ def close_session(session_id):
     return affected > 0
 
 
-def get_pending_bids_in_rank_order(session_id):
+def get_pending_bids_in_rank_order(session_id, table_size=None):
     """Pending bids only, sorted by amount DESC then created_at ASC.
-    Used at session close to pick winners (top N) and outbid the rest."""
+    If table_size is provided, filter to bids whose mapped party-size bucket
+    matches. Used at session close to pick top N winners per bucket."""
     conn = get_db()
-    bids = conn.execute(
-        """SELECT * FROM bids
-           WHERE session_id = ? AND status = 'pending'
-           ORDER BY amount DESC, created_at ASC""",
-        (session_id,)
-    ).fetchall()
+    if table_size is None:
+        bids = conn.execute(
+            """SELECT * FROM bids
+               WHERE session_id = ? AND status = 'pending'
+               ORDER BY amount DESC, created_at ASC""",
+            (session_id,)
+        ).fetchall()
+    else:
+        ts = int(table_size)
+        # Party-size -> table-size mapping must match map_party_to_table.
+        # 2-top: parties 1,2 | 4-top: parties 3,4 | 6-top: parties 5,6.
+        bounds = {2: (1, 2), 4: (3, 4), 6: (5, 6)}
+        lo, hi = bounds[ts]
+        bids = conn.execute(
+            """SELECT * FROM bids
+               WHERE session_id = ? AND status = 'pending'
+               AND party_size BETWEEN ? AND ?
+               ORDER BY amount DESC, created_at ASC""",
+            (session_id, lo, hi)
+        ).fetchall()
     conn.close()
     return list(bids)
 
 
-def find_next_promotable_runner_up(session_id):
-    """Highest-ranked outbid bidder for this session who opted in to auto-promote
-    AND whose Stripe hold hasn't been released yet. None if no one qualifies."""
+def find_next_promotable_runner_up(session_id, table_size):
+    """Highest-ranked outbid bidder for this session AND bucket who opted in to
+    auto-promote AND whose Stripe hold hasn't been released yet. None if no one
+    qualifies. Scoped per-bucket so a 4-top forfeit doesn't promote a 2-top bidder."""
+    bounds = {2: (1, 2), 4: (3, 4), 6: (5, 6)}
+    lo, hi = bounds[int(table_size)]
     conn = get_db()
     bid = conn.execute(
         """SELECT * FROM bids
@@ -216,9 +295,10 @@ def find_next_promotable_runner_up(session_id):
            AND status = 'outbid'
            AND auto_promote = 1
            AND released_at IS NULL
+           AND party_size BETWEEN ? AND ?
            ORDER BY amount DESC, created_at ASC
            LIMIT 1""",
-        (session_id,)
+        (session_id, lo, hi)
     ).fetchone()
     conn.close()
     return bid
@@ -264,41 +344,44 @@ def transition_to_pending_confirm(bid_id):
 # ─── Bids ──────────────────────────────────────────────────────
 
 def place_bid(session_id, bidder_name, bidder_email, bidder_phone, amount,
-              stripe_payment_intent='', auto_promote=True):
+              party_size, stripe_payment_intent='', auto_promote=True):
     conn = get_db()
     bid_id = uuid.uuid4().hex[:8]
     conn.execute(
         '''INSERT INTO bids
            (id, session_id, bidder_name, bidder_email, bidder_phone, amount,
-            stripe_payment_intent, auto_promote)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            party_size, stripe_payment_intent, auto_promote)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         (bid_id, session_id, bidder_name, bidder_email, bidder_phone, amount,
-         stripe_payment_intent, 1 if auto_promote else 0)
+         int(party_size), stripe_payment_intent, 1 if auto_promote else 0)
     )
     conn.commit()
     conn.close()
     return bid_id
 
 
-def get_bids_for_session(session_id, include_inactive=True):
+def get_bids_for_session(session_id, include_inactive=True, table_size=None):
     """Return bids for a session, ordered by amount DESC then created_at ASC.
 
     include_inactive=False excludes cancelled, expired, and forfeited bids — used
     by public bidder pages so dead bids don't pollute the visible leaderboard.
+    table_size, if provided, filters to bids whose party-size maps to that bucket
+    — used by the bidder status page to silently scope the leaderboard to the
+    viewer's bucket.
     """
+    params = [session_id]
+    where = ['session_id = ?']
+    if not include_inactive:
+        where.append("status NOT IN ('cancelled', 'expired', 'forfeited')")
+    if table_size is not None:
+        bounds = {2: (1, 2), 4: (3, 4), 6: (5, 6)}
+        lo, hi = bounds[int(table_size)]
+        where.append('party_size BETWEEN ? AND ?')
+        params.extend([lo, hi])
+    sql = ('SELECT * FROM bids WHERE ' + ' AND '.join(where) +
+           ' ORDER BY amount DESC, created_at ASC')
     conn = get_db()
-    if include_inactive:
-        bids = conn.execute(
-            'SELECT * FROM bids WHERE session_id = ? ORDER BY amount DESC, created_at ASC',
-            (session_id,)
-        ).fetchall()
-    else:
-        bids = conn.execute(
-            """SELECT * FROM bids WHERE session_id = ?
-               AND status NOT IN ('cancelled', 'expired', 'forfeited')
-               ORDER BY amount DESC, created_at ASC""",
-            (session_id,)
-        ).fetchall()
+    bids = conn.execute(sql, tuple(params)).fetchall()
     conn.close()
     return bids
 
@@ -386,18 +469,22 @@ def find_pending_confirm_bid_by_phone(phone):
     return bid
 
 
-def get_active_winners(session_id):
+def get_active_winners(session_id, table_size=None):
     """Bids currently holding a winning slot — either awaiting SMS confirm
     or already confirmed. Forfeited bids are explicitly excluded; the slot
-    they vacated is filled by a promoted runner-up that ends up in this list."""
+    they vacated is filled by a promoted runner-up that ends up in this list.
+    If table_size is provided, scope to that bucket only."""
+    params = [session_id]
+    where = ["session_id = ?", "status IN ('won_pending_confirm', 'won_confirmed')"]
+    if table_size is not None:
+        bounds = {2: (1, 2), 4: (3, 4), 6: (5, 6)}
+        lo, hi = bounds[int(table_size)]
+        where.append('party_size BETWEEN ? AND ?')
+        params.extend([lo, hi])
+    sql = ('SELECT * FROM bids WHERE ' + ' AND '.join(where) +
+           ' ORDER BY amount DESC, created_at ASC')
     conn = get_db()
-    bids = conn.execute(
-        """SELECT * FROM bids
-           WHERE session_id = ?
-           AND status IN ('won_pending_confirm', 'won_confirmed')
-           ORDER BY amount DESC, created_at ASC""",
-        (session_id,)
-    ).fetchall()
+    bids = conn.execute(sql, tuple(params)).fetchall()
     conn.close()
     return list(bids)
 
@@ -451,15 +538,25 @@ def get_outbid_unreleased(session_id):
     return list(bids)
 
 
-def get_bid_stats(session_id):
-    conn = get_db()
-    stats = conn.execute('''
+def get_bid_stats(session_id, table_size=None):
+    """Aggregate bid stats for the session, optionally scoped to a single bucket.
+    Bidder-facing pages pass table_size so the 'top bid' a bidder sees reflects
+    their competition, not the whole session."""
+    params = [session_id]
+    where = ["session_id = ?", "status != 'cancelled'"]
+    if table_size is not None:
+        bounds = {2: (1, 2), 4: (3, 4), 6: (5, 6)}
+        lo, hi = bounds[int(table_size)]
+        where.append('party_size BETWEEN ? AND ?')
+        params.extend([lo, hi])
+    sql = '''
         SELECT
             COUNT(*) as total_bids,
             MAX(amount) as highest_bid,
             MIN(amount) as lowest_bid,
             AVG(amount) as avg_bid
-        FROM bids WHERE session_id = ? AND status != 'cancelled'
-    ''', (session_id,)).fetchone()
+        FROM bids WHERE ''' + ' AND '.join(where)
+    conn = get_db()
+    stats = conn.execute(sql, tuple(params)).fetchone()
     conn.close()
     return stats
