@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Privacy — ANTE{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="bid-page-header">
+        <h1 class="display">Privacy</h1>
+        <div class="meta">Last updated: 2026-05-27</div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="bid-section" style="text-align:left;">
+        <p style="margin-bottom:14px;">ANTE is a walk-in bidding platform. When you place a bid, you provide a small amount of information so we can run the bid, notify you if you win, and authorize a hold on your card. This page explains what we collect and what we do with it.</p>
+
+        <h2 class="label" style="margin-top:18px;">What we collect</h2>
+        <ul style="margin:8px 0 14px 18px;">
+            <li>Your name, email, and phone number, which you enter on the bid form.</li>
+            <li>Your bid amount and the venue you're bidding at.</li>
+            <li>A cookie tied to your bidding session, used only to recognize you when you return to your own bid status page.</li>
+        </ul>
+        <p style="margin-bottom:14px;">We do <strong>not</strong> see or store your full card details. Card information is sent directly from your browser to Stripe, our payment processor, which handles authorization and capture. See <a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe's privacy policy</a>.</p>
+
+        <h2 class="label" style="margin-top:18px;">How we use it</h2>
+        <ul style="margin:8px 0 14px 18px;">
+            <li>To run the bid: rank bids, determine winners, release holds for non-winners.</li>
+            <li>To text you a one-time SMS if you win, asking you to confirm or release your table.</li>
+            <li>To capture the bid amount as credit toward your bill if you win and confirm.</li>
+            <li>To respond if you contact us about your bid.</li>
+        </ul>
+
+        <h2 class="label" style="margin-top:18px;">SMS messages</h2>
+        <p style="margin-bottom:14px;">By providing your phone number on the bid form, you agree to receive a one-time SMS notification from ANTE about that bid. You can reply STOP at any time to opt out. Standard message and data rates may apply.</p>
+
+        <h2 class="label" style="margin-top:18px;">What we do not do</h2>
+        <ul style="margin:8px 0 14px 18px;">
+            <li>We do not sell or share your information with marketers.</li>
+            <li>We do not text you about anything other than the bid you placed.</li>
+            <li>We do not track you across other sites.</li>
+        </ul>
+
+        <h2 class="label" style="margin-top:18px;">Retention</h2>
+        <p style="margin-bottom:14px;">We retain bid records for our own bookkeeping. If you'd like your bid record removed, email us at the address below.</p>
+
+        <h2 class="label" style="margin-top:18px;">Contact</h2>
+        <p>Questions about your data or this policy: <a href="mailto:misselliechen@gmail.com">misselliechen@gmail.com</a>.</p>
+    </div>
+</div>
+{% endblock %}

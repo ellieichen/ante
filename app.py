@@ -148,6 +148,11 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/privacy')
+def privacy():
+    return render_template('privacy.html')
+
+
 # ─── Customer: View Session & Place Bid ────────────────────────
 
 @app.route('/e/<session_id>')
