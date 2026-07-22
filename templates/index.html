@@ -2,29 +2,19 @@
 {% block title %}ANTE{% endblock %}
 
 {% block content %}
-<div class="page">
-    <div class="landing">
+<div class="landing">
+    <div class="landing-inner">
         <h1 class="hero-title">ANTE</h1>
-        <p class="tagline">Skip the wait. Commit to spend. Get in.</p>
+        <div class="landing-rule"></div>
+        <p class="tagline">Skip the wait. Your bid is your credit.</p>
+    </div>
 
-        <div class="landing-steps">
-            <div class="step">
-                <span class="step-num">01</span>
-                <span class="step-text">Scan the QR at the host stand</span>
-            </div>
-            <div class="step">
-                <span class="step-num">02</span>
-                <span class="step-text">Place your blind bid — the amount you'll spend</span>
-            </div>
-            <div class="step">
-                <span class="step-num">03</span>
-                <span class="step-text">Highest bidders win. Your bid = your credit.</span>
-            </div>
-        </div>
-
-        <div class="landing-cta">
-            <a href="/admin" class="btn btn-secondary">Venue Admin</a>
-        </div>
+    <div class="landing-foot">
+        <span>New York</span>
+        <span class="foot-dot">·</span>
+        <a href="{{ url_for('privacy') }}">Privacy</a>
+        <span class="foot-dot">·</span>
+        <a href="{{ url_for('admin_dashboard') }}">Venue admin</a>
     </div>
 </div>
 {% endblock %}

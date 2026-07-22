@@ -70,11 +70,14 @@
                     <label for="email">Email</label>
                     <input type="email" id="email" name="email" required placeholder="jane@example.com" value="{{ from_bid.bidder_email if from_bid else '' }}">
                 </div>
-                <div class="field" style="padding:0; margin-bottom:18px;">
+                <div class="field" style="padding:0; margin-bottom:12px;">
                     <label for="phone">Phone</label>
                     <input type="tel" id="phone" name="phone" required placeholder="(555) 123-4567" value="{{ from_bid.bidder_phone if from_bid else '' }}">
-                    <div class="hint" style="margin-top:6px;">By providing your phone, you agree to receive a one-time SMS notification if you win this bid. Reply STOP to opt out.</div>
                 </div>
+                <label class="sms-consent" style="margin-bottom:18px;">
+                    <input type="checkbox" id="sms-consent" name="sms_consent"{% if from_bid %} checked{% endif %}>
+                    <span>I agree to receive SMS text messages from ANTE about my bid at this venue — a one-time confirmation if I win. Msg &amp; data rates may apply. Reply STOP to opt out. See our <a href="{{ url_for('privacy') }}" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+                </label>
 
                 <div id="form-error" style="display:none; padding:10px 12px; margin-bottom:10px; background:rgba(181,82,74,0.08); border-left:2px solid #B5524A; color:#B5524A; font-size:11px; border-radius:5px;"></div>
                 <button type="submit" class="btn btn-place-bid" id="continue-btn">{% if from_bid %}Up the ANTE →{% else %}Place bid now →{% endif %}</button>
@@ -237,6 +240,12 @@
         const min = currentMin();
         if (!name || !email || !phone || !Number.isFinite(amount) || amount < min) {
             showMessage(`Please fill all fields. Minimum bid is $${min}.`, true);
+            return;
+        }
+
+        const smsConsent = document.getElementById('sms-consent');
+        if (smsConsent && !smsConsent.checked) {
+            showMessage('Please check the box to agree to receive the one-time SMS about your bid.', true);
             return;
         }
 

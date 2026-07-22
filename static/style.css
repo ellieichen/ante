@@ -399,10 +399,28 @@ a { color: var(--accent); text-decoration: none; }
 
 /* ─── Index / Landing ─────────────────────────────────────── */
 .landing {
-    padding: 80px 24px 48px;
+    /* Splash front door: hero centered in the viewport, footer pinned low. */
+    min-height: calc(100vh - 52px);
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
     text-align: center;
+}
+.landing-inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     max-width: 640px;
     margin: 0 auto;
+}
+.landing-eyebrow {
+    font-size: clamp(10px, calc(9px + 0.15vw), 12px);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 26px;
 }
 .landing h1.hero-title {
     font-family: 'DM Serif Display', Georgia, serif;
@@ -411,52 +429,41 @@ a { color: var(--accent); text-decoration: none; }
     font-size: clamp(84px, calc(56px + 9vw), 200px);
     letter-spacing: -0.02em;
     color: var(--accent);
-    margin-bottom: 18px;
     line-height: 0.95;
 }
+.landing-rule {
+    width: 46px;
+    height: 1px;
+    background: var(--accent);
+    opacity: 0.8;
+    margin: 30px 0 22px;
+}
 .landing .tagline {
-    font-size: clamp(15px, calc(12px + 0.9vw), 28px);
+    font-size: clamp(15px, calc(12px + 0.9vw), 24px);
     color: var(--text-secondary);
-    margin-bottom: 48px;
     letter-spacing: -0.01em;
+    max-width: 26ch;
+    text-wrap: balance;
 }
-.landing-steps {
-    text-align: left;
-    background: var(--surface);
-    border-radius: var(--radius);
-    padding: 24px 28px;
-    margin-bottom: 32px;
-}
-.landing-steps .step {
+.landing-foot {
     display: flex;
-    gap: 20px;
-    align-items: baseline;
-    padding: 14px 0;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 18px 0 4px;
+    font-size: clamp(10px, calc(9px + 0.15vw), 12px);
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
 }
-.landing-steps .step + .step { border-top: 0.5px solid var(--border); }
-.landing-steps .step-num {
-    font-size: clamp(12px, calc(11px + 0.2vw), 15px);
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    color: var(--accent);
-    flex-shrink: 0;
+.landing-foot a {
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1px;
 }
-.landing-steps .step-text {
-    font-size: clamp(14px, calc(12px + 0.5vw), 20px);
-    color: var(--text);
-    line-height: 1.4;
-}
-.landing-cta { padding: 0; max-width: 240px; margin: 0 auto; }
-.landing-cta .btn {
-    height: 44px;
-    line-height: 44px;
-    font-size: clamp(12px, calc(11px + 0.15vw), 14px);
-}
+.landing-foot .foot-dot { opacity: 0.5; }
 
 @media (max-width: 480px) {
-    .landing { padding: 40px 16px 32px; }
-    .landing .tagline { margin-bottom: 32px; }
-    .landing-steps { padding: 16px 18px; }
+    .landing { padding: 16px; min-height: calc(100vh - 48px); }
 }
 
 /* ─── Customer bid page ───────────────────────────────────── */
@@ -472,6 +479,26 @@ a { color: var(--accent); text-decoration: none; }
 
 .bid-list-section { padding: 0 14px; }
 .bid-list-section .label { padding: 0 8px; margin-bottom: 6px; }
+
+/* SMS opt-in consent — explicit checkbox required before a bid (Twilio) */
+.sms-consent {
+    display: flex;
+    gap: 9px;
+    align-items: flex-start;
+    font-size: clamp(10px, calc(9px + 0.2vw), 12px);
+    color: var(--text-secondary);
+    line-height: 1.45;
+    cursor: pointer;
+}
+.sms-consent input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 15px;
+    height: 15px;
+    margin-top: 1px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.sms-consent a { color: var(--accent); text-decoration: underline; }
 
 /* ─── Bid status / Winner confirmation ────────────────────── */
 .winner-wrap {
