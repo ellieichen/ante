@@ -24,6 +24,19 @@ TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM_NUMBER = os.getenv('TWILIO_FROM_NUMBER', '')
 
 
+@app.context_processor
+def inject_asset_version():
+    """Cache-bust static assets by file mtime so deploys are picked up without
+    a manual hard-refresh. Templates call asset_version('style.css') and append
+    it as a ?v= query string on the asset URL."""
+    def asset_version(filename):
+        try:
+            return int(os.path.getmtime(os.path.join(app.static_folder, filename)))
+        except OSError:
+            return ''
+    return {'asset_version': asset_version}
+
+
 def _normalize_phone(phone):
     """Best-effort normalize to E.164. Assumes US if 10 digits."""
     if not phone:
